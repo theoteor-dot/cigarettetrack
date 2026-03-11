@@ -591,8 +591,12 @@ const StatsTab = ({data,settings,setSettings,expenses}) => {
       if(sorted.length>0) eventDelays[evKey].push(sorted[0]-evTime);
     });
   });
-  const avgEventDelay=Object.fromEntries(
-    Object.entries(eventDelays).map(([k,v])=>[k, v.length?Math.round(v.reduce((a,b)=>a+b,0)/v.length):null])
+  const eventDelayStats=Object.fromEntries(
+    Object.entries(eventDelays).map(([k,v])=>[k, v.length?{
+      avg:Math.round(v.reduce((a,b)=>a+b,0)/v.length),
+      min:Math.min(...v),
+      max:Math.max(...v),
+    }:null])
   );
 
   // ── Comparaison semaine N vs N-1 ──
@@ -770,34 +774,35 @@ const StatsTab = ({data,settings,setSettings,expenses}) => {
   ) : null;
 
   // ⏱ Délai avant 1ère cig après événement
-  const eventDelayCard = Object.values(avgEventDelay).some(v=>v!==null) ? (
+  const eventDelayCard = Object.values(eventDelayStats).some(v=>v!==null) ? (
     <Card key="eventdelay" dark={dark}>
       <Lbl dark={dark}>⏱ Délai avant la 1ère cig après…</Lbl>
-      <div style={{display:"flex",flexDirection:"column",gap:10}}>
-        {Object.entries(avgEventDelay).map(([key,val])=>{
+      <div style={{display:"flex",flexDirection:"column",gap:14}}>
+        {Object.entries(eventDelayStats).map(([key,val])=>{
           const ev=eventLabels[key];
-          if(val===null)return null;
-          const maxVal=Math.max(...Object.values(avgEventDelay).filter(Boolean),1);
-          const pct=Math.round((val/maxVal)*100);
-          const color=val<30?"#f87171":val<60?"#fcd34d":val<120?"#86efac":"#4ade80";
+          if(!val)return null;
+          const color=val.avg<30?"#f87171":val.avg<60?"#fcd34d":val.avg<120?"#86efac":"#4ade80";
+          const maxVal=Math.max(...Object.values(eventDelayStats).filter(Boolean).map(v=>v.avg),1);
           return(
-            <div key={key} style={{display:"flex",alignItems:"center",gap:10}}>
-              <span style={{fontSize:22,width:28}}>{ev.emoji}</span>
-              <div style={{flex:1}}>
-                <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-                  <span style={{fontSize:13,fontWeight:600,color:tC}}>{ev.label}</span>
-                  <span style={{fontSize:13,fontWeight:800,color:stC}}>{fmtDur(val)}</span>
-                </div>
-                <div style={{background:dark?"rgba(255,255,255,0.1)":"rgba(200,180,170,0.2)",borderRadius:99,height:8,overflow:"hidden"}}>
-                  <div style={{height:"100%",width:`${pct}%`,background:color,borderRadius:99,transition:"width 0.4s"}}/>
-                </div>
+            <div key={key}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                <span style={{fontSize:20}}>{ev.emoji}</span>
+                <span style={{fontSize:13,fontWeight:700,color:tC}}>{ev.label}</span>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6}}>
+                {[["Moyen",val.avg,"#86efac"],["Min",val.min,"#fca5a5"],["Max",val.max,"#c4b5fd"]].map(([l,v,c])=>(
+                  <div key={l} style={{background:dark?"rgba(255,255,255,0.08)":"rgba(255,255,255,0.7)",borderRadius:10,padding:"8px 6px",textAlign:"center",border:`1.5px solid ${c}60`}}>
+                    <div style={{fontSize:13,fontWeight:900,color:tC}}>{fmtDur(v)}</div>
+                    <div style={{fontSize:9,color:stC,marginTop:2}}>{l}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{marginTop:6,background:dark?"rgba(255,255,255,0.1)":"rgba(200,180,170,0.2)",borderRadius:99,height:6,overflow:"hidden"}}>
+                <div style={{height:"100%",width:`${Math.round((val.avg/maxVal)*100)}%`,background:color,borderRadius:99}}/>
               </div>
             </div>
           );
         })}
-      </div>
-      <div style={{fontSize:11,color:stC,marginTop:10,textAlign:"center"}}>
-        Temps moyen entre l'événement et la cigarette suivante
       </div>
     </Card>
   ) : null;
