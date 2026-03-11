@@ -61,7 +61,6 @@ const isNightTime = (data) => {
   if(yesterdayD.bedtime && !todayD.wakeUp) return true;
   return false;
 };
-};
 
 const SMOKE_TYPES = [
   { id:"cigarette", emoji:"🚬", label:"Cigarette" },
