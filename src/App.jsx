@@ -62,7 +62,7 @@ const isNightTime = (data) => {
 const SMOKE_TYPES = [
   { id:"cigarette", emoji:"🚬", label:"Cigarette" },
   { id:"vape",      emoji:"💨", label:"Vape"       },
-  { id:"joint",     emoji:"🌿", label:"Joint"      },
+  { id:"cannabis",  emoji:"🌿", label:"Cannabis"  },
 ];
 
 const EXPENSE_CATS = [
@@ -165,7 +165,7 @@ const Lbl = ({children,dark=false}) => (
   <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.08em",color:dark?"#5ecfa0":"#a0857a",textTransform:"uppercase",marginBottom:10}}>{children}</div>
 );
 
-const EventModal = ({label,emoji,currentTime,onConfirm,onCancel}) => {
+const EventModal = ({label,emoji,currentTime,onConfirm,onCancel,onDelete}) => {
   const [time,setTime] = useState(currentTime||nowHHMM());
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.65)",backdropFilter:"blur(6px)",zIndex:100,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={onCancel}>
@@ -178,6 +178,7 @@ const EventModal = ({label,emoji,currentTime,onConfirm,onCancel}) => {
           <input type="time" value={time} onChange={e=>setTime(e.target.value)} style={{border:"1.5px solid rgba(200,180,170,0.4)",borderRadius:12,padding:"8px 16px",fontSize:20,color:"#5a4a40",outline:"none"}}/>
         </div>
         <div style={{display:"flex",gap:10}}>
+          <button onClick={onDelete} style={{padding:"12px 14px",borderRadius:14,border:"none",background:"rgba(248,113,113,0.15)",fontSize:18,cursor:"pointer"}}>🗑️</button>
           <button onClick={onCancel} style={{flex:1,padding:12,borderRadius:14,border:"none",background:"rgba(200,180,170,0.2)",fontSize:14,fontWeight:600,color:"#a07868",cursor:"pointer"}}>Annuler</button>
           <button onClick={()=>onConfirm(time)} style={{flex:2,padding:12,borderRadius:14,border:"none",background:"linear-gradient(135deg,#86efac,#4ade80)",fontSize:15,fontWeight:700,color:"#1a4a30",cursor:"pointer"}}>✓ Confirmer</button>
         </div>
@@ -539,7 +540,7 @@ const HomeTab = ({data,setData,settings,setSettings,expenses}) => {
         <div style={{height:"100%",width:`${ratio*100}%`,background:ratio<0.7?"#86efac":ratio<1?"#fcd34d":"#fca5a5",borderRadius:99,transition:"width 0.5s"}}/>
       </div>
       <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:stC,marginBottom:18}}>
-        <span>{Math.max(0,day.goal-day.cigs.length)>0?`Encore ${day.goal-day.cigs.length} avant l'objectif`:`⚠️ Dépassé de ${day.cigs.length-day.goal}`}</span>
+        <span style={{fontWeight:700}}>{day.cigs.length} / {day.goal}</span>
         {settings.showMoney!==false&&<span>~{(day.cigs.length*cpCig).toFixed(2)}{settings.currency}</span>}
       </div>
       <button onClick={()=>setShowModal(true)} style={{background:"linear-gradient(135deg,#fca5a5,#fb7185)",border:"none",borderRadius:999,padding:"14px 40px",fontSize:16,fontWeight:700,color:"white",cursor:"pointer",boxShadow:"0 6px 20px rgba(251,113,133,0.35)",display:"inline-flex",alignItems:"center",gap:10}}>
@@ -570,7 +571,7 @@ const HomeTab = ({data,setData,settings,setSettings,expenses}) => {
   return (
     <div>
       {showModal&&<FactorModal onConfirm={confirmCig} onCancel={()=>setShowModal(false)} settings={settings}/>}
-      {eventModal&&<EventModal label={eventModal.label} emoji={eventModal.emoji} currentTime={day[eventModal.key]} onConfirm={t=>{upd({[eventModal.key]:t});setEventModal(null);}} onCancel={()=>setEventModal(null)}/>}
+      {eventModal&&<EventModal label={eventModal.label} emoji={eventModal.emoji} currentTime={day[eventModal.key]} onConfirm={t=>{upd({[eventModal.key]:t});setEventModal(null);}} onCancel={()=>setEventModal(null)} onDelete={()=>{upd({[eventModal.key]:""});setEventModal(null);}}/>}
       {newBadge&&<div style={{position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",zIndex:200,background:"linear-gradient(135deg,rgba(253,230,138,0.97),rgba(252,200,100,0.97))",borderRadius:16,padding:"12px 20px",display:"flex",alignItems:"center",gap:12,maxWidth:340,width:"90%",border:"1.5px solid rgba(252,200,100,0.6)"}}><span style={{fontSize:32}}>{newBadge.emoji}</span><div><div style={{fontSize:11,fontWeight:700,color:"#7a5a20",textTransform:"uppercase"}}>Badge débloqué !</div><div style={{fontSize:14,fontWeight:800,color:"#5a3a10"}}>{newBadge.label}</div></div></div>}
       {phase&&<div style={{background:phase.bg,borderRadius:16,padding:"10px 16px",marginBottom:10,display:"flex",alignItems:"center",gap:10,border:`1.5px solid ${phase.color}50`}}><span style={{fontSize:22}}>{phase.emoji}</span><div><div style={{fontSize:11,fontWeight:700,color:phase.color,textTransform:"uppercase"}}>Cycle utérin</div><div style={{fontSize:13,fontWeight:600,color:tC}}>{phase.label}</div></div></div>}
 
@@ -796,24 +797,66 @@ const StatsTab = ({data,settings,setSettings,expenses}) => {
 
   const costCard = <Card key="cost" dark={dark}><Lbl dark={dark}>💸 Coût de la période</Lbl><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:realExpTotal>0?12:0}}><div style={{background:dark?"rgba(252,165,165,0.12)":"rgba(252,165,165,0.2)",borderRadius:12,padding:10,textAlign:"center"}}><div style={{fontSize:11,color:stC,marginBottom:4}}>Estimé</div><div style={{fontSize:22,fontWeight:900,color:dark?"#f0a0a0":"#c05040"}}>{estCost}{settings.currency}</div></div><div style={{background:dark?"rgba(253,230,138,0.1)":"rgba(253,230,138,0.25)",borderRadius:12,padding:10,textAlign:"center"}}><div style={{fontSize:11,color:stC,marginBottom:4}}>Réel (dépenses)</div><div style={{fontSize:22,fontWeight:900,color:dark?"#e0c060":"#7a6030"}}>{realExpTotal>0?`${realExpTotal.toFixed(2)}${settings.currency}`:"–"}</div></div></div>{realExp.length>0&&<div style={{display:"flex",flexDirection:"column",gap:4}}>{EXPENSE_CATS.map(cat=>{const tot=realExp.filter(e=>e.cat===cat.id).reduce((s,e)=>s+e.amount,0);return tot>0&&<div key={cat.id} style={{display:"flex",justifyContent:"space-between",fontSize:13,color:dark?"#c0c8c4":"#7a6a60",padding:"4px 0",borderBottom:`1px solid ${dark?"rgba(255,255,255,0.07)":"rgba(200,180,170,0.15)"}`}}><span>{cat.emoji} {cat.label}</span><span style={{fontWeight:700}}>{tot.toFixed(2)}{settings.currency}</span></div>;})}</div>}</Card>;
 
-  const hoursCard = <Card key="hours" dark={dark}><Lbl dark={dark}>🕐 Distribution horaire</Lbl>{hc[pkH]>0&&<div style={{fontSize:12,color:stC,marginBottom:8}}>Pic : <strong style={{color:tC}}>{pkH}h–{pkH+1}h</strong></div>}<div style={{display:"flex",alignItems:"flex-end",gap:2,height:64}}>{hc.map((c,h)=><div key={h} style={{flex:1,height:`${Math.max((c/mxH)*56,c>0?3:0)}px`,background:h===pkH&&c>0?"#fb7185":c?`hsl(${20-(h/24)*30},65%,${dark?52:70}%)`:(dark?"rgba(255,255,255,0.07)":"rgba(200,180,170,0.15)"),borderRadius:"3px 3px 0 0",alignSelf:"flex-end"}}/>)}</div><div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:dark?"#6a9a8a":"#bbb",fontFamily:"monospace",marginTop:4}}>{[0,6,12,18,23].map(h=><span key={h}>{h}h</span>)}</div></Card>;
+  // ── Helper grille horizontale auto-scalée ──
+  const GridLines = ({maxVal, chartH, dark}) => {
+    if(!maxVal||maxVal===0) return null;
+    // Pas "propre" auto-ajusté : 1,2,5,10,25,50…
+    const rawStep = maxVal / 4;
+    const mag = Math.pow(10, Math.floor(Math.log10(Math.max(rawStep,1))));
+    const norm = rawStep / mag;
+    const nice = norm<=1?1:norm<=2?2:norm<=2.5?2.5:norm<=5?5:10;
+    const step = Math.max(1, nice * mag);
+    const lines = [];
+    for(let v=0; v<=maxVal; v+=step) lines.push(v);
+    return (
+      <>
+        {lines.map(v=>{
+          const pct = v / maxVal;
+          const isZero = v === 0;
+          return (
+            <div key={v} style={{position:"absolute",left:0,right:0,bottom:`${pct*chartH}px`,display:"flex",alignItems:"center",pointerEvents:"none",zIndex:1}}>
+              <span style={{fontSize:8,fontWeight:500,color:dark?"rgba(255,255,255,0.45)":"rgba(120,100,90,0.75)",marginRight:4,lineHeight:1,whiteSpace:"nowrap",minWidth:14,textAlign:"right"}}>{Number.isInteger(v)?v:v.toFixed(1)}</span>
+              <div style={{flex:1,borderTop:`1px ${isZero?"solid":"dashed"} ${isZero?(dark?"rgba(255,255,255,0.25)":"rgba(150,130,120,0.45)"):(dark?"rgba(255,255,255,0.1)":"rgba(180,160,150,0.22)")}`,height:0}}/>
+            </div>
+          );
+        })}
+      </>
+    );
+  };
+
+  const hoursCard = (
+    <Card key="hours" dark={dark}>
+      <Lbl dark={dark}>🕐 Distribution horaire</Lbl>
+      {hc[pkH]>0&&<div style={{fontSize:12,color:stC,marginBottom:8}}>Pic : <strong style={{color:tC}}>{pkH}h–{pkH+1}h</strong></div>}
+      <div style={{position:"relative",paddingLeft:18}}>
+        <GridLines maxVal={mxH} chartH={56} dark={dark}/>
+        <div style={{display:"flex",alignItems:"flex-end",gap:2,height:64,position:"relative",zIndex:2}}>
+          {hc.map((c,h)=><div key={h} style={{flex:1,height:`${Math.max((c/mxH)*56,c>0?3:0)}px`,background:h===pkH&&c>0?"#fb7185":c?`hsl(${20-(h/24)*30},65%,${dark?52:70}%)`:(dark?"rgba(255,255,255,0.07)":"rgba(200,180,170,0.15)"),borderRadius:"3px 3px 0 0",alignSelf:"flex-end"}}/>)}
+        </div>
+      </div>
+      <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:dark?"#6a9a8a":"#bbb",fontFamily:"monospace",marginTop:4,paddingLeft:18}}>{[0,6,12,18,23].map(h=><span key={h}>{h}h</span>)}</div>
+    </Card>
+  );
 
   // 📈 Courbe d'évolution
   const evolutionCard = chartKeys.length>=2 ? (
     <Card key="evolution" dark={dark}>
       <Lbl dark={dark}>📈 Évolution sur la période</Lbl>
-      <div style={{position:"relative",height:80,display:"flex",alignItems:"flex-end",gap:2}}>
-        {chartKeys.map(({k,d},i)=>{
-          const h=Math.max((d._cigs.length/chartMax)*72,d._cigs.length>0?4:0);
-          const overGoal=d._cigs.length>d.goal;
-          const isToday=k===today();
-          return <div key={k} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-            <div style={{width:"100%",height:h,background:overGoal?(dark?"rgba(248,113,113,0.7)":"#fca5a5"):(dark?"rgba(74,222,128,0.55)":"#86efac"),borderRadius:"3px 3px 0 0",border:isToday?"1.5px solid #fb7185":"none",boxSizing:"border-box"}}/>
-          </div>;
-        })}
-        {days[0]?.goal&&<div style={{position:"absolute",left:0,right:0,bottom:`${(days[0].goal/chartMax)*72}px`,borderTop:`1.5px dashed ${dark?"rgba(251,191,36,0.5)":"rgba(200,140,80,0.4)"}`,pointerEvents:"none"}}/>}
+      <div style={{position:"relative",height:80,paddingLeft:18}}>
+        <GridLines maxVal={chartMax} chartH={72} dark={dark}/>
+        <div style={{position:"relative",height:80,display:"flex",alignItems:"flex-end",gap:2,zIndex:2}}>
+          {chartKeys.map(({k,d},i)=>{
+            const h=Math.max((d._cigs.length/chartMax)*72,d._cigs.length>0?4:0);
+            const overGoal=d._cigs.length>d.goal;
+            const isToday=k===today();
+            return <div key={k} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+              <div style={{width:"100%",height:h,background:overGoal?(dark?"rgba(248,113,113,0.7)":"#fca5a5"):(dark?"rgba(74,222,128,0.55)":"#86efac"),borderRadius:"3px 3px 0 0",border:isToday?"1.5px solid #fb7185":"none",boxSizing:"border-box"}}/>
+            </div>;
+          })}
+          {days[0]?.goal&&<div style={{position:"absolute",left:0,right:0,bottom:`${(days[0].goal/chartMax)*72}px`,borderTop:`1.5px dashed ${dark?"rgba(251,191,36,0.5)":"rgba(200,140,80,0.4)"}`,pointerEvents:"none"}}/>}
+        </div>
       </div>
-      <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:dark?"#6a9a8a":"#bbb",marginTop:4}}>
+      <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:dark?"#6a9a8a":"#bbb",marginTop:4,paddingLeft:18}}>
         <span>{chartKeys[0]?.k.slice(5)}</span>
         <span style={{fontSize:10,color:stC}}>— objectif</span>
         <span>{chartKeys[chartKeys.length-1]?.k.slice(5)}</span>
@@ -849,13 +892,16 @@ const StatsTab = ({data,settings,setSettings,expenses}) => {
     <Card key="dow" dark={dark}>
       <Lbl dark={dark}>📅 Jour le plus chargé</Lbl>
       <div style={{fontSize:12,color:stC,marginBottom:8}}>Pic : <strong style={{color:tC}}>{dowLabels[peakDow]}</strong> ({dowAvg[peakDow]} moy.)</div>
-      <div style={{display:"flex",alignItems:"flex-end",gap:4,height:56}}>
-        {dowAvg.map((v,i)=>(
-          <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-            <div style={{width:"100%",height:`${Math.max((v/maxDow)*48,v>0?3:0)}px`,background:i===peakDow?"#fb7185":(dark?"rgba(255,255,255,0.2)":"rgba(200,140,120,0.35)"),borderRadius:"3px 3px 0 0",alignSelf:"flex-end"}}/>
-            <div style={{fontSize:9,color:i===peakDow?(dark?"#f87171":"#c05040"):stC,fontWeight:i===peakDow?700:400}}>{dowLabels[i].slice(0,2)}</div>
-          </div>
-        ))}
+      <div style={{position:"relative",paddingLeft:18}}>
+        <GridLines maxVal={maxDow} chartH={48} dark={dark}/>
+        <div style={{display:"flex",alignItems:"flex-end",gap:4,height:56,position:"relative",zIndex:2}}>
+          {dowAvg.map((v,i)=>(
+            <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+              <div style={{width:"100%",height:`${Math.max((v/maxDow)*48,v>0?3:0)}px`,background:i===peakDow?"#fb7185":(dark?"rgba(255,255,255,0.2)":"rgba(200,140,120,0.35)"),borderRadius:"3px 3px 0 0",alignSelf:"flex-end"}}/>
+              <div style={{fontSize:9,color:i===peakDow?(dark?"#f87171":"#c05040"):stC,fontWeight:i===peakDow?700:400}}>{dowLabels[i].slice(0,2)}</div>
+            </div>
+          ))}
+        </div>
       </div>
     </Card>
   );
@@ -1206,7 +1252,7 @@ const ExpensesPanel = ({expenses,setExpenses,settings,dark}) => {
       <div style={{background:dark?"rgba(255,255,255,0.08)":"rgba(255,255,255,0.65)",borderRadius:16,padding:16,marginBottom:14,border:dark?"1px solid rgba(255,255,255,0.12)":"1px solid rgba(255,255,255,0.8)"}}>
         <div style={{fontSize:12,fontWeight:700,color:dark?"#5ecfa0":"#a0857a",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:12}}>➕ Nouvelle dépense</div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8,marginBottom:12}}>
-          {EXPENSE_CATS.map(c=><button key={c.id} onClick={()=>setCat(c.id)} style={{padding:"10px 8px",borderRadius:12,border:cat===c.id?"2px solid #fb7185":"2px solid rgba(200,180,170,0.25)",background:cat===c.id?(dark?"rgba(252,165,165,0.15)":"rgba(252,165,165,0.2)"):(dark?"rgba(255,255,255,0.05)":"rgba(255,255,255,0.7)"),cursor:"pointer",display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:20}}>{c.emoji}</span><span style={{fontSize:11,fontWeight:600,color:cat===c.id?"#c05040":(dark?"#c0c8c4":"#a07868"),textAlign:"left",lineHeight:1.3}}>{c.label}</span></button>)}
+          {EXPENSE_CATS.filter(c=>c.id!=="cannabis"||(settings.smokeTypes||[]).includes("cannabis")).map(c=><button key={c.id} onClick={()=>setCat(c.id)} style={{padding:"10px 8px",borderRadius:12,border:cat===c.id?"2px solid #fb7185":"2px solid rgba(200,180,170,0.25)",background:cat===c.id?(dark?"rgba(252,165,165,0.15)":"rgba(252,165,165,0.2)"):(dark?"rgba(255,255,255,0.05)":"rgba(255,255,255,0.7)"),cursor:"pointer",display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:20}}>{c.emoji}</span><span style={{fontSize:11,fontWeight:600,color:cat===c.id?"#c05040":(dark?"#c0c8c4":"#a07868"),textAlign:"left",lineHeight:1.3}}>{c.label}</span></button>)}
         </div>
         <div style={{display:"flex",gap:8,marginBottom:8}}>
           <div style={{flex:1}}><div style={{fontSize:11,color:stC,marginBottom:4}}>Montant</div><div style={{display:"flex",alignItems:"center",gap:4}}><input type="number" value={amt} onChange={e=>setAmt(e.target.value)} placeholder="0.00" min="0" step="0.01" style={{...iS,width:"100%",fontWeight:700}}/><span style={{fontSize:15,fontWeight:700,color:stC,flexShrink:0}}>{settings.currency}</span></div></div>
@@ -1329,7 +1375,7 @@ const WalletTab = ({data, settings, setSettings, expenses, setExpenses}) => {
       <Card dark={dark}>
         <Lbl dark={dark}>➕ NOUVELLE DÉPENSE</Lbl>
         <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8,marginBottom:12}}>
-          {EXPENSE_CATS.map(c=><button key={c.id} onClick={()=>setCat(c.id)} style={{padding:"10px 8px",borderRadius:12,border:cat===c.id?"2px solid #fb7185":"2px solid rgba(200,180,170,0.25)",background:cat===c.id?(dark?"rgba(252,165,165,0.15)":"rgba(252,165,165,0.2)"):(dark?"rgba(255,255,255,0.05)":"rgba(255,255,255,0.7)"),cursor:"pointer",display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:20}}>{c.emoji}</span><span style={{fontSize:11,fontWeight:600,color:cat===c.id?"#c05040":(dark?"#c0c8c4":"#a07868")}}>{c.label}</span></button>)}
+          {EXPENSE_CATS.filter(c=>c.id!=="cannabis"||(settings.smokeTypes||[]).includes("cannabis")).map(c=><button key={c.id} onClick={()=>setCat(c.id)} style={{padding:"10px 8px",borderRadius:12,border:cat===c.id?"2px solid #fb7185":"2px solid rgba(200,180,170,0.25)",background:cat===c.id?(dark?"rgba(252,165,165,0.15)":"rgba(252,165,165,0.2)"):(dark?"rgba(255,255,255,0.05)":"rgba(255,255,255,0.7)"),cursor:"pointer",display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:20}}>{c.emoji}</span><span style={{fontSize:11,fontWeight:600,color:cat===c.id?"#c05040":(dark?"#c0c8c4":"#a07868")}}>{c.label}</span></button>)}
         </div>
         <div style={{display:"flex",gap:8,marginBottom:8}}>
           <div style={{flex:1}}>
