@@ -319,7 +319,7 @@ const LastCigChrono = ({cigs}) => {
   const lastRef = useRef(null);
   if(cigs.length>0){const[h,m]=cigs[cigs.length-1].split(":").map(Number);const n=new Date();lastRef.current=new Date(n.getFullYear(),n.getMonth(),n.getDate(),h,m,0);}
   else lastRef.current=null;
-  useEffect(()=>{ if(!lastRef.current)return; const tick=()=>setElapsed(Math.max(0,Math.floor((Date.now()-lastRef.current.getTime())/1000))); tick(); const id=setInterval(tick,60000); return()=>clearInterval(id); },[cigs.length>0?cigs[cigs.length-1]:null]);
+  useEffect(()=>{ if(!lastRef.current)return; const tick=()=>setElapsed(Math.max(0,Math.floor((Date.now()-lastRef.current.getTime())/1000))); tick(); const id=setInterval(tick,1000); return()=>clearInterval(id); },[cigs.length>0?cigs[cigs.length-1]:null]);
   if(!cigs.length)return(<div style={{display:"flex",justifyContent:"center",margin:"14px 0 4px"}}><div style={{background:"rgba(134,239,172,0.25)",borderRadius:99,padding:"8px 20px",display:"inline-flex",alignItems:"center",gap:8}}><div style={{width:8,height:8,borderRadius:"50%",background:"#86efac"}}/><span style={{fontSize:13,fontWeight:700,color:"#3a7a50"}}>Aucune consommation aujourd'hui 🌿</span></div></div>);
   const h=Math.floor(elapsed/3600),m=Math.floor((elapsed%3600)/60);
   const urg=elapsed<1800?"#f87171":elapsed<3600?"#fbbf24":"#4ade80";
@@ -543,8 +543,8 @@ const HomeTab = ({data,setData,settings,setSettings,expenses}) => {
         <span style={{fontWeight:700}}>{day.cigs.length} / {day.goal}</span>
         {settings.showMoney!==false&&<span>~{(day.cigs.length*cpCig).toFixed(2)}{settings.currency}</span>}
       </div>
-      <button onClick={()=>setShowModal(true)} style={{background:"linear-gradient(135deg,#fca5a5,#fb7185)",border:"none",borderRadius:999,padding:"14px 40px",fontSize:16,fontWeight:700,color:"white",cursor:"pointer",boxShadow:"0 6px 20px rgba(251,113,133,0.35)",display:"inline-flex",alignItems:"center",gap:10}}>
-        <Icon name="plus" size={20} color="white"/> Consommer
+      <button onClick={()=>setShowModal(true)} style={{background:"linear-gradient(135deg,#fca5a5,#fb7185)",border:"none",borderRadius:999,padding:"17px 52px",fontSize:18,fontWeight:700,color:"white",cursor:"pointer",boxShadow:"0 6px 20px rgba(251,113,133,0.35)",display:"inline-flex",alignItems:"center",gap:10}}>
+        <Icon name="plus" size={23} color="white"/> Consommer
       </button>
       {settings.showEvents&&<div style={{marginTop:12,display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
         {EVENTS.map(ev=>{const set=!!day[ev.key];return<button key={ev.key} onClick={()=>{if(!day[ev.key])upd({[ev.key]:nowHHMM()});else setEventModal(ev);}} style={{background:set?(dark?"rgba(134,239,172,0.18)":"rgba(134,239,172,0.3)"):(dark?"rgba(255,255,255,0.08)":"rgba(255,255,255,0.5)"),border:`1.5px solid ${set?"rgba(134,239,172,0.7)":(dark?"rgba(255,255,255,0.15)":"rgba(200,180,170,0.4)")}`,borderRadius:12,padding:"8px 4px",fontSize:11,fontWeight:700,color:set?"#2a6a40":stC,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:4}}><span style={{fontSize:18}}>{ev.emoji}</span><span>{set?day[ev.key]:ev.label}</span></button>;})}
@@ -1535,6 +1535,12 @@ export default function App() {
   // dark = manual ON always dark / auto mode = dark only at night / manual OFF = never dark
   const dark = settings.darkMode ? true : (settings.autoDark !== false ? isNightTime(data) : false);
   const bg   = getBg(day.cigs.length, settings.defaultGoal||10, dark);
+
+  // Sync theme-color meta with current background
+  useEffect(()=>{
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if(meta) meta.setAttribute("content", dark?"#0a1a14": bg.includes("135deg") ? bg.match(/#[0-9a-fA-F]{6}/)?.[0]||"#d4e8d4" : "#d4e8d4");
+  },[bg, dark]);
   const tabs = [
     {id:"home",icon:"home",label:"Accueil"},
     {id:"calendar",icon:"calendar",label:"Calendrier"},
@@ -1547,7 +1553,7 @@ export default function App() {
   const activeClr=dark?"#4ade80":"#d05a40", inactClr=dark?"#3a6055":"#b09080";
   return (
     <div style={{minHeight:"100dvh",background:bg,transition:"background 1.2s",fontFamily:"system-ui,sans-serif"}}>
-      <style>{`*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}input,button,textarea{font-family:inherit;}::-webkit-scrollbar{width:4px;height:4px;}::-webkit-scrollbar-thumb{background:rgba(150,130,120,0.3);border-radius:99px;}`}</style>
+      <style>{`*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}input,button,textarea{font-family:inherit;}::-webkit-scrollbar{width:4px;height:4px;}::-webkit-scrollbar-thumb{background:rgba(150,130,120,0.3);border-radius:99px;}body{margin:0;background:${dark?"#0a1a14":bg};}`}</style>
       <div style={{padding:"20px 20px 8px",textAlign:"center"}}>
         <div style={{fontSize:22}}>🚬</div>
         <div style={{fontSize:18,fontWeight:900,color:dark?"#d8ece4":"#5a3a30",letterSpacing:"-0.02em"}}>SmokeTrack</div>
@@ -1562,7 +1568,7 @@ export default function App() {
         {tab==="wallet"   &&<WalletTab   data={data} settings={settings} setSettings={setSettings} expenses={expenses} setExpenses={setExpenses}/>}
         {tab==="settings" &&<SettingsTab data={data} setData={setData} settings={settings} setSettings={setSettings} expenses={expenses} setExpenses={setExpenses}/>}
       </div>
-      <div style={{position:"fixed",bottom:0,left:0,right:0,background:dark?"rgba(8,13,18,0.97)":"rgba(255,255,255,0.9)",backdropFilter:"blur(20px)",borderTop:dark?"1px solid rgba(255,255,255,0.1)":"1px solid rgba(200,180,170,0.3)",display:"flex",justifyContent:"space-around",padding:"6px 0 max(8px,env(safe-area-inset-bottom))"}}>
+      <div style={{position:"fixed",bottom:0,left:0,right:0,background:dark?"rgba(8,13,18,0.97)":"rgba(255,255,255,0.9)",backdropFilter:"blur(20px)",borderTop:dark?"1px solid rgba(255,255,255,0.1)":"1px solid rgba(200,180,170,0.3)",display:"flex",justifyContent:"space-around",padding:"6px 0 8px"}}>
         {tabs.map(t=><button key={t.id} onClick={()=>setTab(t.id)} style={{background:"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2,padding:"3px 4px",color:tab===t.id?activeClr:inactClr,transition:"color 0.2s",minWidth:44}}><Icon name={t.icon} size={22} color={tab===t.id?activeClr:inactClr}/><span style={{fontSize:9,fontWeight:tab===t.id?700:500}}>{t.label}</span></button>)}
       </div>
     </div>
