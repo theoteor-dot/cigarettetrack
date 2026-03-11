@@ -658,6 +658,21 @@ const StatsTab = ({data,settings,setSettings,expenses}) => {
   });
   const sleepAvg=obj=>{const v=Object.values(obj);return v.length?+(v.reduce((a,b)=>a+b,0)/v.length).toFixed(1):null;};
 
+  // ── Délai avant 1ère cig après événement ──
+  const eventDelays={wakeUp:[],lunch:[],dinner:[]};
+  const eventLabels={wakeUp:{label:"Lever",emoji:"☀️"},lunch:{label:"Déjeuner",emoji:"🍽️"},dinner:{label:"Dîner",emoji:"🌙"}};
+  keyedDays.forEach(({d})=>{
+    Object.keys(eventDelays).forEach(evKey=>{
+      const evTime=msm(d[evKey]);
+      if(evTime===null)return;
+      const sorted=d.cigs.map(t=>msm(t)).filter(x=>x!==null&&x>evTime).sort((a,b)=>a-b);
+      if(sorted.length>0) eventDelays[evKey].push(sorted[0]-evTime);
+    });
+  });
+  const avgEventDelay=Object.fromEntries(
+    Object.entries(eventDelays).map(([k,v])=>[k, v.length?Math.round(v.reduce((a,b)=>a+b,0)/v.length):null])
+  );
+
   // ── Comparaison semaine N vs N-1 ──
   const getWeekKeys=(offsetWeeks)=>{
     const end=new Date(); end.setDate(end.getDate()-offsetWeeks*7);
@@ -680,12 +695,12 @@ const StatsTab = ({data,settings,setSettings,expenses}) => {
   const savedYear=(savedPerDay*365).toFixed(2);
 
   const tC=dark?"#f0f4f2":"#5a3a30", stC=dark?"#90b8a8":"#a07868";
-  const SC=({l,v,e})=><div style={{background:dark?"rgba(255,255,255,0.1)":"rgba(255,255,255,0.62)",borderRadius:14,padding:"12px 10px",textAlign:"center"}}><div style={{fontSize:20}}>{e}</div><div style={{fontSize:18,fontWeight:900,color:tC,lineHeight:1.1}}>{v}</div><div style={{fontSize:10,color:stC,marginTop:2}}>{l}</div></div>;
+  const SC=({l,v,e})=><div style={{background:dark?"rgba(255,255,255,0.1)":"rgba(255,255,255,0.62)",borderRadius:14,padding:"12px 10px",textAlign:"center"}}>{e&&<div style={{fontSize:20}}>{e}</div>}<div style={{fontSize:18,fontWeight:900,color:tC,lineHeight:1.1}}>{v}</div><div style={{fontSize:10,color:stC,marginTop:2}}>{l}</div></div>;
 
   // ── Cards ──
   const layout = (settings.layouts||DEF_LAYOUTS).stats || DEF_LAYOUTS.stats;
 
-  const summaryCard = <Card key="summary" dark={dark}><Lbl dark={dark}>Résumé</Lbl><div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}><SC e="🚬" v={total} l="Total"/><SC e="📊" v={period==="today"?total:avg} l={period==="today"?"Auj.":"Moy / jour"}/><SC e="🔥" v={maxD} l="Record"/><SC e="📐" v={median??"–"} l="Médiane"/><SC e="🎯" v={`${grP}%`} l="Objectifs"/><SC e="🏆" v={`${streak}j`} l="Série"/></div></Card>;
+  const summaryCard = <Card key="summary" dark={dark}><Lbl dark={dark}>Résumé</Lbl><div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}><SC v={total} l="Total"/><SC v={period==="today"?total:avg} l={period==="today"?"Auj.":"Moy / jour"}/><SC v={maxD} l="Record"/><SC v={median??"–"} l="Médiane"/><SC v={`${grP}%`} l="Objectifs"/><SC v={`${streak}j`} l="Série"/></div></Card>;
 
   const costCard = <Card key="cost" dark={dark}><Lbl dark={dark}>💸 Coût de la période</Lbl><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:realExpTotal>0?12:0}}><div style={{background:dark?"rgba(252,165,165,0.12)":"rgba(252,165,165,0.2)",borderRadius:12,padding:10,textAlign:"center"}}><div style={{fontSize:11,color:stC,marginBottom:4}}>Estimé</div><div style={{fontSize:22,fontWeight:900,color:dark?"#f0a0a0":"#c05040"}}>{estCost}{settings.currency}</div></div><div style={{background:dark?"rgba(253,230,138,0.1)":"rgba(253,230,138,0.25)",borderRadius:12,padding:10,textAlign:"center"}}><div style={{fontSize:11,color:stC,marginBottom:4}}>Réel (dépenses)</div><div style={{fontSize:22,fontWeight:900,color:dark?"#e0c060":"#7a6030"}}>{realExpTotal>0?`${realExpTotal.toFixed(2)}${settings.currency}`:"–"}</div></div></div>{realExp.length>0&&<div style={{display:"flex",flexDirection:"column",gap:4}}>{EXPENSE_CATS.map(cat=>{const tot=realExp.filter(e=>e.cat===cat.id).reduce((s,e)=>s+e.amount,0);return tot>0&&<div key={cat.id} style={{display:"flex",justifyContent:"space-between",fontSize:13,color:dark?"#c0c8c4":"#7a6a60",padding:"4px 0",borderBottom:`1px solid ${dark?"rgba(255,255,255,0.07)":"rgba(200,180,170,0.15)"}`}}><span>{cat.emoji} {cat.label}</span><span style={{fontWeight:700}}>{tot.toFixed(2)}{settings.currency}</span></div>;})}</div>}</Card>;
 
@@ -832,8 +847,41 @@ const StatsTab = ({data,settings,setSettings,expenses}) => {
     </Card>
   ) : null;
 
-  const DEF_STATS_LAYOUT = ["summary","evolution","weekcompare","interval","dow","sleep","savings","cost","hours"];
-  const fullCardMap = {summary:summaryCard, cost:costCard, hours:hoursCard, evolution:evolutionCard, interval:intervalCard, dow:dowCard, sleep:sleepCorrelCard, weekcompare:weekCompareCard, savings:savingsCard};
+  // ⏱ Délai avant 1ère cig après événement
+  const eventDelayCard = Object.values(avgEventDelay).some(v=>v!==null) ? (
+    <Card key="eventdelay" dark={dark}>
+      <Lbl dark={dark}>⏱ Délai avant la 1ère cig après…</Lbl>
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        {Object.entries(avgEventDelay).map(([key,val])=>{
+          const ev=eventLabels[key];
+          if(val===null)return null;
+          const maxVal=Math.max(...Object.values(avgEventDelay).filter(Boolean),1);
+          const pct=Math.round((val/maxVal)*100);
+          const color=val<30?"#f87171":val<60?"#fcd34d":val<120?"#86efac":"#4ade80";
+          return(
+            <div key={key} style={{display:"flex",alignItems:"center",gap:10}}>
+              <span style={{fontSize:22,width:28}}>{ev.emoji}</span>
+              <div style={{flex:1}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                  <span style={{fontSize:13,fontWeight:600,color:tC}}>{ev.label}</span>
+                  <span style={{fontSize:13,fontWeight:800,color:stC}}>{fmtDur(val)}</span>
+                </div>
+                <div style={{background:dark?"rgba(255,255,255,0.1)":"rgba(200,180,170,0.2)",borderRadius:99,height:8,overflow:"hidden"}}>
+                  <div style={{height:"100%",width:`${pct}%`,background:color,borderRadius:99,transition:"width 0.4s"}}/>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{fontSize:11,color:stC,marginTop:10,textAlign:"center"}}>
+        Temps moyen entre l'événement et la cigarette suivante
+      </div>
+    </Card>
+  ) : null;
+
+  const DEF_STATS_LAYOUT = ["summary","evolution","weekcompare","interval","eventdelay","dow","sleep","savings","cost","hours"];
+  const fullCardMap = {summary:summaryCard, cost:costCard, hours:hoursCard, evolution:evolutionCard, interval:intervalCard, dow:dowCard, sleep:sleepCorrelCard, weekcompare:weekCompareCard, savings:savingsCard, eventdelay:eventDelayCard};
   const storedLayout = (settings.layouts||DEF_LAYOUTS).stats;
   // merge any new cards not yet in stored layout
   const newIds = DEF_STATS_LAYOUT.filter(id=>!storedLayout?.includes(id));
@@ -1037,50 +1085,52 @@ const ExpensesPanel = ({expenses,setExpenses,settings,dark}) => {
 const SettingsTab = ({data,setData,settings,setSettings,expenses,setExpenses}) => {
   const dark = settings.darkMode||false;
   const [confirmReset,setConfirmReset] = useState(false);
-  const [sec,setSec] = useState("profil");
   const upd = p=>{ const n={...settings,...p}; setSettings(n); saveSettings(n); };
   const tC=dark?"#f0f4f2":"#5a3a30", stC=dark?"#90b8a8":"#a07868";
   const iS={border:`1.5px solid ${dark?"rgba(255,255,255,0.18)":"rgba(200,180,170,0.3)"}`,background:dark?"rgba(255,255,255,0.08)":"rgba(255,255,255,0.75)",borderRadius:10,padding:"6px 10px",fontSize:14,color:tC,outline:"none"};
   const Row=({icon,label,children})=><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:`1px solid ${dark?"rgba(255,255,255,0.08)":"rgba(200,180,170,0.15)"}`}}><div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:32,height:32,background:dark?"rgba(255,255,255,0.1)":"rgba(200,180,170,0.2)",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name={icon} size={16} color={dark?"#90b8a8":"#a0857a"}/></div><span style={{fontSize:14,color:tC,fontWeight:600}}>{label}</span></div>{children}</div>;
 
-  const sections=[{id:"profil",label:"👤 Profil"},{id:"produits",label:"🛒 Produits"},{id:"appli",label:"🎨 Appli"},{id:"cout",label:"💰 Coût"},{id:"depenses",label:"🧾 Dépenses"},{id:"cycle",label:"🌙 Cycle"},{id:"donnees",label:"📊 Données"}];
-
   return (
     <div>
-      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
-        {sections.map(s=><button key={s.id} onClick={()=>setSec(s.id)} style={{padding:"6px 12px",borderRadius:99,fontSize:12,fontWeight:600,cursor:"pointer",border:sec===s.id?"2px solid rgba(200,130,110,0.6)":"2px solid transparent",background:sec===s.id?(dark?"rgba(200,130,110,0.3)":"rgba(200,130,110,0.2)"):(dark?"rgba(255,255,255,0.09)":"rgba(255,255,255,0.55)"),color:tC}}>{s.label}</button>)}
-      </div>
-
-      {sec==="profil"&&<Card dark={dark}><Lbl dark={dark}>👤 Profil</Lbl>
+      {/* PROFIL */}
+      <Card dark={dark}><Lbl dark={dark}>👤 PROFIL</Lbl>
         <Row icon="user" label="Prénom"><StableInput value={settings.name} onCommit={v=>upd({name:v})} placeholder="Ton prénom" style={{...iS,width:130}}/></Row>
-        <Row icon="target" label="Objectif / jour"><StableInput type="number" value={settings.defaultGoal} onCommit={v=>upd({defaultGoal:Math.max(1,parseInt(v)||1)})} style={{...iS,width:70,textAlign:"right"}}/></Row>
-      </Card>}
+        <Row icon="target" label="Objectif par défaut"><StableInput type="number" value={settings.defaultGoal} onCommit={v=>upd({defaultGoal:Math.max(1,parseInt(v)||1)})} style={{...iS,width:70,textAlign:"right"}}/></Row>
+      </Card>
 
-      {sec==="produits"&&<Card dark={dark}><Lbl dark={dark}>🛒 Ce que tu fumes</Lbl>
-        <div style={{fontSize:13,color:stC,marginBottom:12}}>Sélectionne un ou plusieurs produits</div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:10}}>
+      {/* APPARENCE */}
+      <Card dark={dark}><Lbl dark={dark}>🎨 APPARENCE</Lbl>
+        <Toggle val={!!settings.darkMode} onChange={v=>upd({darkMode:v})} label="🌙 Mode sombre" desc="Interface sombre pour la nuit" dark={dark}/>
+        <Toggle val={settings.autoDark!==false} onChange={v=>upd({autoDark:v})} label="🌛 Mode sombre automatique" desc="S'active entre coucher et lever du soleil" dark={dark}/>
+      </Card>
+
+      {/* FONCTIONNALITÉS */}
+      <Card dark={dark}><Lbl dark={dark}>⚙️ FONCTIONNALITÉS AFFICHÉES</Lbl>
+        <Toggle val={settings.showFactors!==false} onChange={v=>upd({showFactors:v})} label="🔍 Facteurs déclenchants" desc="Dans la saisie et les analyses" dark={dark}/>
+        <Toggle val={settings.showCravings!==false} onChange={v=>upd({showCravings:v})} label="🌡️ Note d'envie" desc="Niveau d'envie lors de la saisie" dark={dark}/>
+        <Toggle val={settings.showEvents!==false} onChange={v=>upd({showEvents:v})} label="📅 Événements du jour" desc="Lever, repas, dîner, coucher" dark={dark}/>
+      </Card>
+
+      {/* PRODUITS */}
+      <Card dark={dark}><Lbl dark={dark}>🛒 CE QUE TU FUMES</Lbl>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:8}}>
           {SMOKE_TYPES.map(t=>{const active=(settings.smokeTypes||["cigarette"]).includes(t.id);return<button key={t.id} onClick={()=>{const cur=settings.smokeTypes||["cigarette"];const next=active?(cur.length>1?cur.filter(x=>x!==t.id):cur):[...cur,t.id];upd({smokeTypes:next});}} style={{padding:"14px 8px",borderRadius:16,border:active?"2.5px solid #fb7185":"2px solid rgba(200,180,170,0.25)",background:active?(dark?"rgba(252,165,165,0.15)":"rgba(252,165,165,0.2)"):(dark?"rgba(255,255,255,0.06)":"rgba(255,255,255,0.7)"),cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:6}}><span style={{fontSize:32}}>{t.emoji}</span><span style={{fontSize:12,fontWeight:700,color:active?"#c05040":(dark?"#c0d0c8":"#a07868")}}>{t.label}</span>{active&&<span style={{fontSize:9,background:"rgba(251,113,133,0.2)",borderRadius:99,padding:"2px 8px",color:"#c05040",fontWeight:700}}>✓ Actif</span>}</button>;})}
         </div>
         <div style={{fontSize:11,color:stC,textAlign:"center"}}>Tu dois avoir au moins un produit actif</div>
-      </Card>}
+      </Card>
 
-      {sec==="appli"&&<Card dark={dark}><Lbl dark={dark}>🎨 Apparence & fonctionnalités</Lbl>
-        <Toggle val={!!settings.darkMode} onChange={v=>upd({darkMode:v})} label="🌙 Mode sombre forcé" desc="Toujours en mode sombre" dark={dark}/>
-        <Toggle val={settings.autoDark!==false} onChange={v=>upd({autoDark:v})} label="🌛 Mode sombre automatique" desc="S'active entre coucher et lever du soleil" dark={dark}/>
-        <Toggle val={settings.showFactors!==false} onChange={v=>upd({showFactors:v})} label="🔍 Facteurs déclenchants" desc="Dans la saisie et l'analyse" dark={dark}/>
-        <Toggle val={settings.showCravings!==false} onChange={v=>upd({showCravings:v})} label="🌡️ Note d'envie" desc="Niveau d'envie lors de la saisie" dark={dark}/>
-        <Toggle val={settings.showEvents!==false} onChange={v=>upd({showEvents:v})} label="📅 Événements du jour" desc="Lever, repas, dîner, coucher" dark={dark}/>
-      </Card>}
-
-      {sec==="cout"&&<Card dark={dark}><Lbl dark={dark}>💰 Coût & habitude</Lbl>
+      {/* COÛT */}
+      <Card dark={dark}><Lbl dark={dark}>💰 COÛT & HABITUDE</Lbl>
         <Row icon="coin" label="Prix / paquet"><div style={{display:"flex",gap:6}}><StableInput type="number" value={settings.pricePerPack} onCommit={v=>upd({pricePerPack:parseFloat(v)||10})} style={{...iS,width:70,textAlign:"right"}}/><StableInput value={settings.currency} onCommit={v=>upd({currency:v||"€"})} style={{...iS,width:38,textAlign:"center"}}/></div></Row>
         <Row icon="target" label="Cigs / paquet"><StableInput type="number" value={settings.cigsPerPack} onCommit={v=>upd({cigsPerPack:parseInt(v)||20})} style={{...iS,width:70,textAlign:"right"}}/></Row>
         <Row icon="savings" label="Habitude (cig/j)"><StableInput type="number" value={settings.usualCigs} onCommit={v=>upd({usualCigs:parseInt(v)||20})} style={{...iS,width:70,textAlign:"right"}}/></Row>
-      </Card>}
+      </Card>
 
-      {sec==="depenses"&&<ExpensesPanel expenses={expenses} setExpenses={setExpenses} settings={settings} dark={dark}/>}
+      {/* DÉPENSES */}
+      <ExpensesPanel expenses={expenses} setExpenses={setExpenses} settings={settings} dark={dark}/>
 
-      {sec==="cycle"&&<Card dark={dark}><Lbl dark={dark}>🌙 Cycle utérin</Lbl>
+      {/* CYCLE */}
+      <Card dark={dark}><Lbl dark={dark}>🌙 CYCLE UTÉRIN</Lbl>
         <div style={{fontSize:13,color:stC,marginBottom:14,lineHeight:1.6}}>Active pour analyser ta conso. en fonction des phases de ton cycle menstruel.</div>
         <Toggle val={!!settings.cycleTracking} onChange={v=>upd({cycleTracking:v})} label="🌙 Activer le suivi" desc="Affiche la phase dans l'accueil et l'analyse" dark={dark}/>
         {settings.cycleTracking&&<div style={{marginTop:14}}>
@@ -1097,20 +1147,21 @@ const SettingsTab = ({data,setData,settings,setSettings,expenses,setExpenses}) =
             {[{label:"Menstruations",emoji:"🔴",days:"J1–J5",color:"#f87171"},{label:"Folliculaire",emoji:"🌱",days:"J6–J13",color:"#4ade80"},{label:"Ovulation",emoji:"🌕",days:"J14–J16",color:"#fbbf24"},{label:"Lutéale",emoji:"🌙",days:"J17–J28",color:"#a78bfa"}].map(p=><div key={p.label} style={{background:dark?"rgba(255,255,255,0.07)":"rgba(255,255,255,0.65)",borderRadius:12,padding:"8px 10px",display:"flex",alignItems:"center",gap:8,border:`1px solid ${p.color}40`}}><span style={{fontSize:18}}>{p.emoji}</span><div><div style={{fontSize:11,fontWeight:700,color:p.color}}>{p.label}</div><div style={{fontSize:10,color:stC}}>{p.days}</div></div></div>)}
           </div>
         </div>}
-      </Card>}
+      </Card>
 
-      {sec==="donnees"&&<>
-        <Card dark={dark}><Lbl dark={dark}>📊 Mes données</Lbl>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-            <div style={{background:dark?"rgba(252,165,165,0.1)":"rgba(252,165,165,0.2)",borderRadius:12,padding:12,textAlign:"center"}}><div style={{fontSize:28,fontWeight:900,color:dark?"#f0c0b8":"#5a3a30"}}>{Object.values(data).reduce((s,d)=>s+(d.cigs?.length||0),0)}</div><div style={{fontSize:11,color:stC}}>consommations</div></div>
-            <div style={{background:dark?"rgba(196,181,253,0.1)":"rgba(196,181,253,0.2)",borderRadius:12,padding:12,textAlign:"center"}}><div style={{fontSize:28,fontWeight:900,color:dark?"#c4b5fd":"#5a3a90"}}>{Object.keys(data).length}</div><div style={{fontSize:11,color:stC}}>jours</div></div>
-          </div>
-        </Card>
-        <Card dark={dark} style={{border:`1.5px solid ${dark?"rgba(248,113,113,0.35)":"rgba(248,113,113,0.3)"}`}}><Lbl dark={dark}>⚠️ Zone danger</Lbl>
-          {!confirmReset?<button onClick={()=>setConfirmReset(true)} style={{width:"100%",background:dark?"rgba(248,113,113,0.1)":"rgba(248,113,113,0.15)",border:"1.5px solid rgba(248,113,113,0.3)",borderRadius:12,padding:10,fontSize:14,fontWeight:700,color:"#f87171",cursor:"pointer"}}>🗑️ Effacer toutes les données</button>
-          :<div><div style={{fontSize:13,color:"#f87171",marginBottom:10,textAlign:"center",fontWeight:600}}>⚠️ Action irréversible ?</div><div style={{display:"flex",gap:10}}><button onClick={()=>setConfirmReset(false)} style={{flex:1,background:dark?"rgba(255,255,255,0.1)":"rgba(255,255,255,0.6)",border:"none",borderRadius:12,padding:10,fontSize:14,cursor:"pointer",color:tC}}>Annuler</button><button onClick={()=>{setData({});saveData({});setExpenses([]);saveExpenses([]);setConfirmReset(false);}} style={{flex:1,background:"rgba(248,113,113,0.25)",border:"none",borderRadius:12,padding:10,fontSize:14,fontWeight:700,cursor:"pointer",color:"#f87171"}}>Confirmer</button></div></div>}
-        </Card>
-      </>}
+      {/* DONNÉES */}
+      <Card dark={dark}><Lbl dark={dark}>📊 MES DONNÉES</Lbl>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+          <div style={{background:dark?"rgba(252,165,165,0.1)":"rgba(252,165,165,0.2)",borderRadius:12,padding:12,textAlign:"center"}}><div style={{fontSize:28,fontWeight:900,color:dark?"#f0c0b8":"#5a3a30"}}>{Object.values(data).reduce((s,d)=>s+(d.cigs?.length||0),0)}</div><div style={{fontSize:11,color:stC}}>consommations</div></div>
+          <div style={{background:dark?"rgba(196,181,253,0.1)":"rgba(196,181,253,0.2)",borderRadius:12,padding:12,textAlign:"center"}}><div style={{fontSize:28,fontWeight:900,color:dark?"#c4b5fd":"#5a3a90"}}>{Object.keys(data).length}</div><div style={{fontSize:11,color:stC}}>jours</div></div>
+        </div>
+      </Card>
+
+      {/* ZONE DANGER */}
+      <Card dark={dark} style={{border:`1.5px solid ${dark?"rgba(248,113,113,0.35)":"rgba(248,113,113,0.3)"}`}}><Lbl dark={dark}>⚠️ Zone danger</Lbl>
+        {!confirmReset?<button onClick={()=>setConfirmReset(true)} style={{width:"100%",background:dark?"rgba(248,113,113,0.1)":"rgba(248,113,113,0.15)",border:"1.5px solid rgba(248,113,113,0.3)",borderRadius:12,padding:10,fontSize:14,fontWeight:700,color:"#f87171",cursor:"pointer"}}>🗑️ Effacer toutes les données</button>
+        :<div><div style={{fontSize:13,color:"#f87171",marginBottom:10,textAlign:"center",fontWeight:600}}>⚠️ Action irréversible ?</div><div style={{display:"flex",gap:10}}><button onClick={()=>setConfirmReset(false)} style={{flex:1,background:dark?"rgba(255,255,255,0.1)":"rgba(255,255,255,0.6)",border:"none",borderRadius:12,padding:10,fontSize:14,cursor:"pointer",color:tC}}>Annuler</button><button onClick={()=>{setData({});saveData({});setExpenses([]);saveExpenses([]);setConfirmReset(false);}} style={{flex:1,background:"rgba(248,113,113,0.25)",border:"none",borderRadius:12,padding:10,fontSize:14,fontWeight:700,cursor:"pointer",color:"#f87171"}}>Confirmer</button></div></div>}
+      </Card>
     </div>
   );
 };
