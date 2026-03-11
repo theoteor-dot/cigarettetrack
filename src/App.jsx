@@ -396,7 +396,7 @@ const DragSorter = ({tabId, settings, setSettings, dark, allIds}) => {
               style={{
                 display:"flex",alignItems:"center",gap:10,
                 padding:"9px 12px",marginBottom:6,borderRadius:12,
-                background:dragging===idx?"rgba(251,113,133,0.15)":(overIdx===idx?"rgba(134,239,172,0.15)"):(dark?"rgba(255,255,255,0.08)":"rgba(255,255,255,0.7)"),
+                background:dragging===idx?"rgba(251,113,133,0.15)":overIdx===idx?"rgba(134,239,172,0.15)":dark?"rgba(255,255,255,0.08)":"rgba(255,255,255,0.7)",
                 border:overIdx===idx?"1.5px dashed #4ade80":`1.5px solid ${dark?"rgba(255,255,255,0.1)":"rgba(200,180,170,0.25)"}`,
                 cursor:"grab",transition:"background 0.15s",
                 opacity:dragging===idx?0.5:1,
