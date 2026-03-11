@@ -800,27 +800,26 @@ const StatsTab = ({data,settings,setSettings,expenses}) => {
   // ── Helper grille horizontale auto-scalée ──
   const GridLines = ({maxVal, chartH, dark}) => {
     if(!maxVal||maxVal===0) return null;
-    // Pas "propre" auto-ajusté : 1,2,5,10,25,50…
     const rawStep = maxVal / 4;
     const mag = Math.pow(10, Math.floor(Math.log10(Math.max(rawStep,1))));
     const norm = rawStep / mag;
     const nice = norm<=1?1:norm<=2?2:norm<=2.5?2.5:norm<=5?5:10;
     const step = Math.max(1, nice * mag);
     const lines = [];
-    for(let v=0; v<=maxVal; v+=step) lines.push(v);
+    for(let v=step; v<=maxVal; v+=step) lines.push(v);
+    if(!lines.includes(maxVal) && maxVal>0) lines.push(maxVal);
     return (
-      <>
+      <div style={{position:"absolute",inset:0,pointerEvents:"none",zIndex:1}}>
         {lines.map(v=>{
           const pct = v / maxVal;
-          const isZero = v === 0;
           return (
-            <div key={v} style={{position:"absolute",left:0,right:0,bottom:`${pct*chartH}px`,display:"flex",alignItems:"center",pointerEvents:"none",zIndex:1}}>
-              <span style={{fontSize:8,fontWeight:500,color:dark?"rgba(255,255,255,0.45)":"rgba(120,100,90,0.75)",marginRight:4,lineHeight:1,whiteSpace:"nowrap",minWidth:14,textAlign:"right"}}>{Number.isInteger(v)?v:v.toFixed(1)}</span>
-              <div style={{flex:1,borderTop:`1px ${isZero?"solid":"dashed"} ${isZero?(dark?"rgba(255,255,255,0.25)":"rgba(150,130,120,0.45)"):(dark?"rgba(255,255,255,0.1)":"rgba(180,160,150,0.22)")}`,height:0}}/>
+            <div key={v} style={{position:"absolute",left:0,right:0,bottom:`${pct*chartH}px`,display:"flex",alignItems:"center"}}>
+              <span style={{fontSize:8,color:dark?"rgba(255,255,255,0.4)":"rgba(120,100,90,0.6)",marginRight:3,lineHeight:1,whiteSpace:"nowrap",minWidth:16,textAlign:"right"}}>{Number.isInteger(v)?v:v.toFixed(1)}</span>
+              <div style={{flex:1,borderTop:`1px dashed ${dark?"rgba(255,255,255,0.1)":"rgba(180,160,150,0.25)"}`,height:0}}/>
             </div>
           );
         })}
-      </>
+      </div>
     );
   };
 
@@ -828,13 +827,16 @@ const StatsTab = ({data,settings,setSettings,expenses}) => {
     <Card key="hours" dark={dark}>
       <Lbl dark={dark}>🕐 Distribution horaire</Lbl>
       {hc[pkH]>0&&<div style={{fontSize:12,color:stC,marginBottom:8}}>Pic : <strong style={{color:tC}}>{pkH}h–{pkH+1}h</strong></div>}
-      <div style={{position:"relative",paddingLeft:18}}>
-        <GridLines maxVal={mxH} chartH={56} dark={dark}/>
-        <div style={{display:"flex",alignItems:"flex-end",gap:2,height:64,position:"relative",zIndex:2}}>
-          {hc.map((c,h)=><div key={h} style={{flex:1,height:`${Math.max((c/mxH)*56,c>0?3:0)}px`,background:h===pkH&&c>0?"#fb7185":c?`hsl(${20-(h/24)*30},65%,${dark?52:70}%)`:(dark?"rgba(255,255,255,0.07)":"rgba(200,180,170,0.15)"),borderRadius:"3px 3px 0 0",alignSelf:"flex-end"}}/>)}
+      <div style={{position:"relative",paddingLeft:22}}>
+        <GridLines maxVal={mxH} chartH={60} dark={dark}/>
+        <div style={{display:"flex",alignItems:"flex-end",gap:1.5,height:60,position:"relative",zIndex:2}}>
+          {hc.map((c,h)=>{
+            const barH = mxH>0 ? Math.max((c/mxH)*60, c>0?3:0) : 0;
+            return <div key={h} style={{flex:1,height:barH,background:h===pkH&&c>0?"#fb7185":c?`hsl(${20-(h/24)*30},65%,${dark?52:70}%)`:(dark?"rgba(255,255,255,0.07)":"rgba(200,180,170,0.15)"),borderRadius:"2px 2px 0 0",alignSelf:"flex-end",minHeight:c>0?3:0}}/>;
+          })}
         </div>
       </div>
-      <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:dark?"#6a9a8a":"#bbb",fontFamily:"monospace",marginTop:4,paddingLeft:18}}>{[0,6,12,18,23].map(h=><span key={h}>{h}h</span>)}</div>
+      <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:dark?"#6a9a8a":"#bbb",fontFamily:"monospace",marginTop:4,paddingLeft:22}}>{[0,6,12,18,23].map(h=><span key={h}>{h}h</span>)}</div>
     </Card>
   );
 
@@ -842,27 +844,25 @@ const StatsTab = ({data,settings,setSettings,expenses}) => {
   const evolutionCard = chartKeys.length>=2 ? (
     <Card key="evolution" dark={dark}>
       <Lbl dark={dark}>📈 Évolution sur la période</Lbl>
-      <div style={{position:"relative",height:80,paddingLeft:18}}>
+      <div style={{position:"relative",paddingLeft:22}}>
         <GridLines maxVal={chartMax} chartH={72} dark={dark}/>
-        <div style={{position:"relative",height:80,display:"flex",alignItems:"flex-end",gap:2,zIndex:2}}>
-          {chartKeys.map(({k,d},i)=>{
-            const h=Math.max((d._cigs.length/chartMax)*72,d._cigs.length>0?4:0);
-            const overGoal=d._cigs.length>d.goal;
-            const isToday=k===today();
-            return <div key={k} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-              <div style={{width:"100%",height:h,background:overGoal?(dark?"rgba(248,113,113,0.7)":"#fca5a5"):(dark?"rgba(74,222,128,0.55)":"#86efac"),borderRadius:"3px 3px 0 0",border:isToday?"1.5px solid #fb7185":"none",boxSizing:"border-box"}}/>
-            </div>;
+        <div style={{display:"flex",alignItems:"flex-end",gap:2,height:72,position:"relative",zIndex:2}}>
+          {chartKeys.map(({k,d})=>{
+            const barH = chartMax>0 ? Math.max((d._cigs.length/chartMax)*72, d._cigs.length>0?4:0) : 0;
+            const overGoal = d._cigs.length>d.goal;
+            const isToday = k===today();
+            return <div key={k} style={{flex:1,height:barH,background:overGoal?(dark?"rgba(248,113,113,0.7)":"#fca5a5"):(dark?"rgba(74,222,128,0.55)":"#86efac"),borderRadius:"2px 2px 0 0",alignSelf:"flex-end",outline:isToday?"2px solid #fb7185":"none",outlineOffset:"-1px"}}/>;
           })}
-          {days[0]?.goal&&<div style={{position:"absolute",left:0,right:0,bottom:`${(days[0].goal/chartMax)*72}px`,borderTop:`1.5px dashed ${dark?"rgba(251,191,36,0.5)":"rgba(200,140,80,0.4)"}`,pointerEvents:"none"}}/>}
+          {days[0]?.goal&&chartMax>0&&<div style={{position:"absolute",left:0,right:0,bottom:`${(days[0].goal/chartMax)*72}px`,borderTop:`1.5px dashed ${dark?"rgba(251,191,36,0.5)":"rgba(200,140,80,0.4)"}`,pointerEvents:"none",zIndex:3}}/>}
         </div>
       </div>
-      <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:dark?"#6a9a8a":"#bbb",marginTop:4,paddingLeft:18}}>
+      <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:dark?"#6a9a8a":"#bbb",marginTop:4,paddingLeft:22}}>
         <span>{chartKeys[0]?.k.slice(5)}</span>
         <span style={{fontSize:10,color:stC}}>— objectif</span>
         <span>{chartKeys[chartKeys.length-1]?.k.slice(5)}</span>
       </div>
       <div style={{display:"flex",gap:10,marginTop:8,justifyContent:"center"}}>
-        {[["#86efac","Sous objectif",dark?"rgba(74,222,128,0.55)":"#86efac"],["#fca5a5","Dépassé",dark?"rgba(248,113,113,0.7)":"#fca5a5"]].map(([_,l,bg])=>(
+        {[["Sous objectif",dark?"rgba(74,222,128,0.55)":"#86efac"],["Dépassé",dark?"rgba(248,113,113,0.7)":"#fca5a5"]].map(([l,bg])=>(
           <div key={l} style={{display:"flex",alignItems:"center",gap:4}}><div style={{width:10,height:10,borderRadius:2,background:bg}}/><span style={{fontSize:10,color:stC}}>{l}</span></div>
         ))}
       </div>
@@ -892,15 +892,18 @@ const StatsTab = ({data,settings,setSettings,expenses}) => {
     <Card key="dow" dark={dark}>
       <Lbl dark={dark}>📅 Jour le plus chargé</Lbl>
       <div style={{fontSize:12,color:stC,marginBottom:8}}>Pic : <strong style={{color:tC}}>{dowLabels[peakDow]}</strong> ({dowAvg[peakDow]} moy.)</div>
-      <div style={{position:"relative",paddingLeft:18}}>
-        <GridLines maxVal={maxDow} chartH={48} dark={dark}/>
-        <div style={{display:"flex",alignItems:"flex-end",gap:4,height:56,position:"relative",zIndex:2}}>
-          {dowAvg.map((v,i)=>(
-            <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-              <div style={{width:"100%",height:`${Math.max((v/maxDow)*48,v>0?3:0)}px`,background:i===peakDow?"#fb7185":(dark?"rgba(255,255,255,0.2)":"rgba(200,140,120,0.35)"),borderRadius:"3px 3px 0 0",alignSelf:"flex-end"}}/>
-              <div style={{fontSize:9,color:i===peakDow?(dark?"#f87171":"#c05040"):stC,fontWeight:i===peakDow?700:400}}>{dowLabels[i].slice(0,2)}</div>
-            </div>
-          ))}
+      <div style={{position:"relative",paddingLeft:22}}>
+        <GridLines maxVal={maxDow} chartH={60} dark={dark}/>
+        <div style={{display:"flex",alignItems:"flex-end",gap:4,height:60,position:"relative",zIndex:2}}>
+          {dowAvg.map((v,i)=>{
+            const barH = maxDow>0 ? Math.max((v/maxDow)*60, v>0?3:0) : 0;
+            return (
+              <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                <div style={{width:"100%",height:barH,background:i===peakDow?"#fb7185":(dark?"rgba(255,255,255,0.2)":"rgba(200,140,120,0.35)"),borderRadius:"3px 3px 0 0",alignSelf:"flex-end"}}/>
+                <div style={{fontSize:9,color:i===peakDow?(dark?"#f87171":"#c05040"):stC,fontWeight:i===peakDow?700:400}}>{dowLabels[i].slice(0,2)}</div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </Card>
@@ -939,7 +942,7 @@ const StatsTab = ({data,settings,setSettings,expenses}) => {
   })();
 
   // 📆 Comparaison semaine N vs N-1
-  const weekCompareCard = (
+  const weekCompareCard = Object.keys(data).length < 7 ? null : (
     <Card key="weekcompare" dark={dark}>
       <Lbl dark={dark}>📆 Cette semaine vs la semaine dernière</Lbl>
       <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,alignItems:"center",marginBottom:14}}>
@@ -1504,15 +1507,31 @@ export default function App() {
   const [settings,setSettings] = useState(loadSettings);
   const [expenses,setExpenses] = useState(loadExpenses);
   const [tab,setTab]           = useState("home");
-  const [tick,setTick]         = useState(0);
+  const [currentDay,setCurrentDay] = useState(today);
 
-  // Auto dark mode: refresh every minute to check night time
+  // Refresh toutes les minutes + déclenchement précis à minuit pour basculer de jour
   useEffect(()=>{
-    const id = setInterval(()=>setTick(t=>t+1), 60000);
-    return ()=>clearInterval(id);
+    const scheduleNextMidnight = () => {
+      const now = new Date();
+      const msToMidnight = (
+        (23 - now.getHours()) * 3600000 +
+        (59 - now.getMinutes()) * 60000 +
+        (60 - now.getSeconds()) * 1000
+      );
+      return setTimeout(()=>{
+        setCurrentDay(today());
+        // Re-schedule pour la prochaine nuit
+        const id2 = setInterval(()=>setCurrentDay(today()), 60000);
+        scheduleNextMidnight();
+        return ()=>clearInterval(id2);
+      }, msToMidnight);
+    };
+    const midnightTimer = scheduleNextMidnight();
+    const minuteId = setInterval(()=>setCurrentDay(today()), 60000);
+    return ()=>{ clearTimeout(midnightTimer); clearInterval(minuteId); };
   },[]);
 
-  const day = data[today()]||defDay();
+  const day = data[currentDay]||defDay();
   // dark = manual ON always dark / auto mode = dark only at night / manual OFF = never dark
   const dark = settings.darkMode ? true : (settings.autoDark !== false ? isNightTime(data) : false);
   const bg   = getBg(day.cigs.length, settings.defaultGoal||10, dark);
