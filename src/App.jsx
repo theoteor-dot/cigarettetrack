@@ -15,11 +15,8 @@ const loadSettings = () => {
     const s=JSON.parse(localStorage.getItem(SET_K));
     if(!s) return defSettings();
     const merged={...defSettings(),...s};
-    // Force reset stats layout if it doesn't contain new cards
-    const statsLayout=merged.layouts?.stats||[];
-    if(!statsLayout.includes("interval")||!statsLayout.includes("eventdelay")){
-      merged.layouts={...merged.layouts, stats:DEF_LAYOUTS.stats};
-    }
+    // Force reset stats layout to new order
+    merged.layouts={...merged.layouts, stats:DEF_LAYOUTS.stats};
     return merged;
   }catch{return defSettings();}
 };
@@ -32,7 +29,7 @@ const defDay = () => ({ cigs:[], cigFactors:{}, cigCravings:{}, cigTypes:{}, wak
 
 const DEF_LAYOUTS = {
   home:    ["counter","timeline","cigs"],
-  stats:   ["summary","evolution","weekcompare","interval","eventdelay","dow","sleep","hours"],
+  stats:   ["summary","interval","eventdelay","hours","dow","weekcompare","evolution","sleep"],
   progres: ["streak","heatmap","badges"],
   analyse: ["factors","cravings"],
 };
@@ -40,7 +37,7 @@ const DEF_LAYOUTS = {
 const defSettings = () => ({
   defaultGoal:10, name:"", currency:"€", pricePerPack:12, cigsPerPack:20, usualCigs:20,
   darkMode:false, autoDark:true,
-  showFactors:true, showCravings:true, showEvents:true,
+  showFactors:true, showCravings:true, showEvents:true, showMoney:true,
   smokeTypes:["cigarette"],
   cycleTracking:false, cycleStartDate:"", cycleDays:28,
   layouts: DEF_LAYOUTS,
@@ -91,7 +88,11 @@ const getCyclePhase = (settings, dateStr) => {
 const getBg = (count, goal, dark) => {
   if(dark) return "linear-gradient(135deg,#0d1117,#161b22)";
   const r = goal>0 ? Math.min(count/goal,1) : 0;
-  return `linear-gradient(135deg,rgb(${Math.round(180+r*70)},${Math.round(220-r*60)},${Math.round(180-r*60)}),rgb(${Math.round(160+r*80)},${Math.round(210-r*80)},${Math.round(200-r*80)}))`;
+  // vert (#b8e0c8) → orange (#e8c090) → rouge (#e89090)
+  const R = Math.round(184 + r*80);
+  const G = Math.round(224 - r*100);
+  const B = Math.round(200 - r*80);
+  return `linear-gradient(160deg,rgb(${R},${G},${B}),rgb(${Math.round(R-10)},${Math.round(G-15)},${Math.round(B-10)}))`;
 };
 
 const FACTORS = [
@@ -152,10 +153,10 @@ const Toggle = ({val,onChange,label,desc,dark}) => (
 
 const Card = ({children,style={},dark=false}) => (
   <div style={{
-    background: dark?"rgba(255,255,255,0.09)":"rgba(255,255,255,0.65)",
+    background: dark?"rgba(22,30,26,0.97)":"rgba(255,255,255,0.97)",
     backdropFilter:"blur(12px)",borderRadius:20,padding:20,
     boxShadow: dark?"0 4px 24px rgba(0,0,0,0.5)":"0 4px 24px rgba(0,0,0,0.07)",
-    border: dark?"1px solid rgba(255,255,255,0.13)":"1px solid rgba(255,255,255,0.8)",
+    border: dark?"1px solid rgba(255,255,255,0.1)":"1px solid rgba(230,220,215,0.8)",
     marginBottom:14,...style
   }}>{children}</div>
 );
@@ -330,12 +331,42 @@ const usePeriodFilter = (data) => {
   const setPeriod = v=>{ setPeriodRaw(v); setShowR(v==="custom"); };
   const allKeys = Object.keys(data).sort();
   let keys;
-  if(period==="today") keys=[today()].filter(k=>data[k]);
+  if(period==="today")   keys=[today()].filter(k=>data[k]);
+  else if(period==="week"){ const cut=new Date(); cut.setDate(cut.getDate()-6); keys=allKeys.filter(k=>k>=cut.toISOString().slice(0,10)); }
+  else if(period==="month"){ const d=new Date(); keys=allKeys.filter(k=>k.startsWith(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`)); }
+  else if(period==="all")  keys=allKeys;
   else if(period==="custom") keys=allKeys.filter(k=>cs&&ce&&k>=cs&&k<=ce);
-  else{ const now=new Date(),cut=new Date(now); if(period==="week")cut.setDate(now.getDate()-7); else cut.setDate(now.getDate()-30); keys=allKeys.filter(k=>k>=cut.toISOString().slice(0,10)); }
+  else keys=allKeys;
+
   const PeriodBar = ({showToday=true}) => {
-    const btn=(v,l)=><button onClick={()=>setPeriod(v)} style={{background:period===v?"rgba(200,130,110,0.4)":"rgba(255,255,255,0.4)",border:period===v?"2px solid rgba(200,130,110,0.6)":"2px solid transparent",borderRadius:99,padding:"5px 12px",fontSize:12,fontWeight:600,cursor:"pointer",color:"#5a3a30"}}>{l}</button>;
-    return(<div style={{marginBottom:8}}><div style={{display:"flex",gap:6,justifyContent:"center",flexWrap:"wrap",marginBottom:6}}>{showToday&&btn("today","Aujourd'hui")}{btn("week","7 jours")}{btn("month","30 jours")}{btn("custom","📅 Période")}</div>{showR&&<div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",justifyContent:"center",marginTop:6}}><input type="date" defaultValue={cs} max={today()} onChange={e=>setCS(e.target.value)} style={{border:"1.5px solid rgba(200,180,170,0.4)",background:"rgba(255,255,255,0.85)",borderRadius:10,padding:"7px 10px",fontSize:13,color:"#5a4a40",outline:"none"}}/><span style={{color:"#a07868",fontWeight:700}}>→</span><input type="date" defaultValue={ce} max={today()} onChange={e=>setCE(e.target.value)} style={{border:"1.5px solid rgba(200,180,170,0.4)",background:"rgba(255,255,255,0.85)",borderRadius:10,padding:"7px 10px",fontSize:13,color:"#5a4a40",outline:"none"}}/><button onClick={()=>{setCS(cs);setCE(ce);setShowR(false);}} style={{background:"linear-gradient(135deg,#fca5a5,#fb7185)",border:"none",borderRadius:10,padding:"8px 18px",fontSize:13,fontWeight:700,color:"white",cursor:"pointer"}}>OK</button></div>}</div>);
+    const PERIODS = [
+      ...(showToday?[{v:"today",l:"Aujourd'hui"}]:[]),
+      {v:"week",  l:"Cette semaine"},
+      {v:"month", l:"Ce mois"},
+      {v:"all",   l:"Depuis toujours"},
+      {v:"custom",l:"📅 Période"},
+    ];
+    return (
+      <div style={{marginBottom:10}}>
+        <div style={{display:"flex",gap:6,justifyContent:"center",flexWrap:"wrap",marginBottom:6}}>
+          {PERIODS.map(({v,l})=>(
+            <button key={v} onClick={()=>setPeriod(v)} style={{
+              background:period===v?"rgba(200,130,110,0.4)":"rgba(255,255,255,0.55)",
+              border:period===v?"2px solid rgba(200,130,110,0.6)":"2px solid transparent",
+              borderRadius:99,padding:"6px 14px",fontSize:12,fontWeight:600,
+              cursor:"pointer",color:period===v?"#7a3a28":"#5a3a30",
+              boxShadow:period===v?"0 2px 8px rgba(200,130,110,0.2)":"none",
+            }}>{l}</button>
+          ))}
+        </div>
+        {showR&&<div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",justifyContent:"center",marginTop:6}}>
+          <input type="date" defaultValue={cs} max={today()} onChange={e=>setCS(e.target.value)} style={{border:"1.5px solid rgba(200,180,170,0.4)",background:"rgba(255,255,255,0.85)",borderRadius:10,padding:"7px 10px",fontSize:13,color:"#5a4a40",outline:"none"}}/>
+          <span style={{color:"#a07868",fontWeight:700}}>→</span>
+          <input type="date" defaultValue={ce} max={today()} onChange={e=>setCE(e.target.value)} style={{border:"1.5px solid rgba(200,180,170,0.4)",background:"rgba(255,255,255,0.85)",borderRadius:10,padding:"7px 10px",fontSize:13,color:"#5a4a40",outline:"none"}}/>
+          <button onClick={()=>setShowR(false)} style={{background:"linear-gradient(135deg,#fca5a5,#fb7185)",border:"none",borderRadius:10,padding:"8px 18px",fontSize:13,fontWeight:700,color:"white",cursor:"pointer"}}>OK</button>
+        </div>}
+      </div>
+    );
   };
   return {period,keys,PeriodBar};
 };
@@ -346,49 +377,125 @@ const usePeriodFilter = (data) => {
 
 
 const BADGES = [
-  // 🚀 Premiers pas
-  {id:"first",     cat:"🚀 Premiers pas", emoji:"👣", label:"Premier pas",       desc:"Tu as commencé à tracker ta consommation. La prise de conscience est la première étape !",          check:d=>Object.keys(d).length>=1},
-  {id:"week1",     cat:"🚀 Premiers pas", emoji:"📅", label:"7 jours trackés",   desc:"7 jours de suivi consécutifs ou non. Tu prends l'habitude de te connaître.",                       check:d=>Object.keys(d).length>=7},
-  {id:"month1",    cat:"🚀 Premiers pas", emoji:"🗓️", label:"30 jours trackés",  desc:"Un mois entier de suivi ! Tu as une vraie vision de tes habitudes maintenant.",                    check:d=>Object.keys(d).length>=30},
-  {id:"noted",     cat:"🚀 Premiers pas", emoji:"📝", label:"Journaliste",        desc:"Tu as écrit une note dans ton journal. Les mots aident à comprendre.",                              check:d=>Object.values(d).some(v=>v.note&&v.note.trim().length>0)},
-  {id:"events5",   cat:"🚀 Premiers pas", emoji:"⏰", label:"Rythmé",             desc:"Tu as enregistré 5 événements de la journée (lever, repas…). Tu connais ton rythme.",              check:d=>{let n=0;Object.values(d).forEach(v=>{if(v.wakeUp)n++;if(v.lunch)n++;if(v.dinner)n++;if(v.bedtime)n++;});return n>=5;}},
+  // 🚀 Premiers pas (12)
+  {id:"first",      cat:"🚀 Premiers pas", emoji:"👣", label:"Premier pas",         desc:"Tu as commencé à tracker ta consommation. La prise de conscience est la première étape !",             check:d=>Object.keys(d).length>=1},
+  {id:"week1",      cat:"🚀 Premiers pas", emoji:"📅", label:"7 jours trackés",     desc:"7 jours de suivi consécutifs ou non. Tu prends l'habitude de te connaître.",                          check:d=>Object.keys(d).length>=7},
+  {id:"month1",     cat:"🚀 Premiers pas", emoji:"🗓️", label:"30 jours trackés",   desc:"Un mois entier de suivi ! Tu as une vraie vision de tes habitudes maintenant.",                       check:d=>Object.keys(d).length>=30},
+  {id:"month3",     cat:"🚀 Premiers pas", emoji:"📆", label:"3 mois de suivi",     desc:"90 jours trackés. Tu fais partie des rares personnes qui s'observent aussi longtemps. Bravo !",      check:d=>Object.keys(d).length>=90},
+  {id:"month6",     cat:"🚀 Premiers pas", emoji:"🌟", label:"6 mois de suivi",     desc:"180 jours. Un semestre entier de connaissance de soi. C'est remarquable.",                            check:d=>Object.keys(d).length>=180},
+  {id:"year1",      cat:"🚀 Premiers pas", emoji:"🎂", label:"1 an de suivi",       desc:"365 jours de tracking ! Tu es une légende vivante de la connaissance de soi.",                        check:d=>Object.keys(d).length>=365},
+  {id:"noted",      cat:"🚀 Premiers pas", emoji:"📝", label:"Journaliste",          desc:"Tu as écrit une note dans ton journal. Les mots aident à comprendre.",                                 check:d=>Object.values(d).some(v=>v.note&&v.note.trim().length>0)},
+  {id:"noted10",    cat:"🚀 Premiers pas", emoji:"📖", label:"Diariste",             desc:"10 notes écrites. Tu construis un vrai journal de bord de ton parcours.",                             check:d=>Object.values(d).filter(v=>v.note&&v.note.trim().length>0).length>=10},
+  {id:"events5",    cat:"🚀 Premiers pas", emoji:"⏰", label:"Rythmé(e)",            desc:"Tu as enregistré 5 événements de la journée (lever, repas…). Tu connais ton rythme.",                 check:d=>{let n=0;Object.values(d).forEach(v=>{if(v.wakeUp)n++;if(v.lunch)n++;if(v.dinner)n++;if(v.bedtime)n++;});return n>=5;}},
+  {id:"fullday",    cat:"🚀 Premiers pas", emoji:"🌞", label:"Journée complète",     desc:"Tu as renseigné lever, déjeuner, dîner ET coucher le même jour. Parfaitement documenté !",           check:d=>Object.values(d).some(v=>v.wakeUp&&v.lunch&&v.dinner&&v.bedtime)},
+  {id:"early",      cat:"🚀 Premiers pas", emoji:"🐦", label:"Lève-tôt",            desc:"Tu as enregistré un lever avant 7h du matin. Les matinaux ont souvent plus de volonté !",            check:d=>Object.values(d).some(v=>v.wakeUp&&parseInt(v.wakeUp)<7*60)},
+  {id:"nightowl",   cat:"🚀 Premiers pas", emoji:"🦉", label:"Oiseau de nuit",      desc:"Tu as enregistré un coucher après minuit. Tu vis à ton propre rythme.",                              check:d=>Object.values(d).some(v=>v.bedtime&&(parseInt(v.bedtime)>=24*60||parseInt(v.bedtime)<3*60))},
 
-  // 🔥 Séries
-  {id:"streak3",   cat:"🔥 Séries",       emoji:"🌱", label:"3 jours maîtrisés", desc:"3 jours consécutifs sous ton objectif. La régularité commence à s'installer.",                    check:d=>{let s=0;for(const k of Object.keys(d).sort().reverse()){const v=d[k];if(v&&v.cigs.length<=v.goal)s++;else break;}return s>=3;}},
-  {id:"streak7",   cat:"🔥 Séries",       emoji:"🌿", label:"Une semaine !",      desc:"7 jours consécutifs sous ton objectif. Une vraie série, continue comme ça !",                     check:d=>{let s=0;for(const k of Object.keys(d).sort().reverse()){const v=d[k];if(v&&v.cigs.length<=v.goal)s++;else break;}return s>=7;}},
-  {id:"streak14",  cat:"🔥 Séries",       emoji:"🌲", label:"Deux semaines !",    desc:"14 jours consécutifs sous ton objectif. Tu as trouvé un vrai rythme.",                            check:d=>{let s=0;for(const k of Object.keys(d).sort().reverse()){const v=d[k];if(v&&v.cigs.length<=v.goal)s++;else break;}return s>=14;}},
-  {id:"streak30",  cat:"🔥 Séries",       emoji:"🌳", label:"Un mois de maîtrise",desc:"30 jours consécutifs sous ton objectif. Un mois entier ! Tu es impressionnant(e).",               check:d=>{let s=0;for(const k of Object.keys(d).sort().reverse()){const v=d[k];if(v&&v.cigs.length<=v.goal)s++;else break;}return s>=30;}},
-  {id:"comeback",  cat:"🔥 Séries",       emoji:"💪", label:"Retour en force",    desc:"Tu as repris une série après l'avoir perdue. La persévérance, c'est ça le vrai courage.",        check:d=>{const keys=Object.keys(d).sort();let hadBreak=false,streak=0;for(const k of keys){const v=d[k];if(v.cigs.length<=v.goal)streak++;else{if(streak>=3)hadBreak=true;streak=0;}}return hadBreak&&streak>=3;}},
+  // 🔥 Séries (12)
+  {id:"streak2",    cat:"🔥 Séries",       emoji:"🌱", label:"2 jours maîtrisés",   desc:"2 jours consécutifs sous ton objectif. Ça commence !",                                               check:d=>{let s=0;for(const k of Object.keys(d).sort().reverse()){const v=d[k];if(v&&v.cigs.length<=v.goal)s++;else break;}return s>=2;}},
+  {id:"streak3",    cat:"🔥 Séries",       emoji:"🌿", label:"3 jours maîtrisés",   desc:"3 jours consécutifs sous ton objectif. La régularité commence à s'installer.",                      check:d=>{let s=0;for(const k of Object.keys(d).sort().reverse()){const v=d[k];if(v&&v.cigs.length<=v.goal)s++;else break;}return s>=3;}},
+  {id:"streak7",    cat:"🔥 Séries",       emoji:"🌲", label:"Une semaine !",        desc:"7 jours consécutifs sous ton objectif. Une vraie série, continue comme ça !",                       check:d=>{let s=0;for(const k of Object.keys(d).sort().reverse()){const v=d[k];if(v&&v.cigs.length<=v.goal)s++;else break;}return s>=7;}},
+  {id:"streak14",   cat:"🔥 Séries",       emoji:"🌳", label:"Deux semaines !",      desc:"14 jours consécutifs sous ton objectif. Tu as trouvé un vrai rythme.",                              check:d=>{let s=0;for(const k of Object.keys(d).sort().reverse()){const v=d[k];if(v&&v.cigs.length<=v.goal)s++;else break;}return s>=14;}},
+  {id:"streak30",   cat:"🔥 Séries",       emoji:"🏔️", label:"Un mois de maîtrise", desc:"30 jours consécutifs sous ton objectif. Un mois entier ! Tu es impressionnant(e).",                check:d=>{let s=0;for(const k of Object.keys(d).sort().reverse()){const v=d[k];if(v&&v.cigs.length<=v.goal)s++;else break;}return s>=30;}},
+  {id:"streak60",   cat:"🔥 Séries",       emoji:"🌋", label:"Deux mois !",          desc:"60 jours consécutifs sous objectif. Une discipline de fer. Tu es exceptionnel(le).",                check:d=>{let s=0;for(const k of Object.keys(d).sort().reverse()){const v=d[k];if(v&&v.cigs.length<=v.goal)s++;else break;}return s>=60;}},
+  {id:"comeback",   cat:"🔥 Séries",       emoji:"💪", label:"Retour en force",      desc:"Tu as repris une série après l'avoir perdue. La persévérance, c'est ça le vrai courage.",          check:d=>{const keys=Object.keys(d).sort();let hadBreak=false,streak=0;for(const k of keys){const v=d[k];if(v.cigs.length<=v.goal)streak++;else{if(streak>=3)hadBreak=true;streak=0;}}return hadBreak&&streak>=3;}},
+  {id:"comeback2",  cat:"🔥 Séries",       emoji:"🦅", label:"Inébranlable",         desc:"Tu t'es relevé(e) 3 fois après avoir perdu ta série. Rien ne t'arrête.",                           check:d=>{const keys=Object.keys(d).sort();let comebacks=0,streak=0;for(const k of keys){const v=d[k];if(v.cigs.length<=v.goal)streak++;else{if(streak>=3)comebacks++;streak=0;}}return comebacks>=3;}},
+  {id:"mondaywin",  cat:"🔥 Séries",       emoji:"📅", label:"Lundi victorieux",     desc:"Tu as commencé au moins 3 semaines sous ton objectif le lundi. Bon début de semaine !",            check:d=>Object.entries(d).filter(([k,v])=>new Date(k+"T12:00:00").getDay()===1&&v.cigs.length<=v.goal).length>=3},
+  {id:"weekend2",   cat:"🔥 Séries",       emoji:"🏖️", label:"Week-end maîtrisé",   desc:"Un samedi ou dimanche sous ton objectif. Même le week-end, tu gardes le contrôle !",              check:d=>Object.entries(d).some(([k,v])=>{const day=new Date(k+"T12:00:00").getDay();return(day===0||day===6)&&v.cigs.length<=v.goal;})},
+  {id:"fullweekend",cat:"🔥 Séries",       emoji:"🌴", label:"Week-end parfait",     desc:"Samedi ET dimanche sous ton objectif la même semaine. Week-end de champion(ne) !",                  check:d=>{const weeks={};Object.entries(d).forEach(([k,v])=>{const dt=new Date(k+"T12:00:00");const day=dt.getDay();const wk=k.slice(0,7)+"-W";if(day===6||day===0){if(!weeks[wk])weeks[wk]={sat:false,sun:false};if(day===6)weeks[wk].sat=v.cigs.length<=v.goal;if(day===0)weeks[wk].sun=v.cigs.length<=v.goal;}});return Object.values(weeks).some(w=>w.sat&&w.sun);}},
+  {id:"wholeweek",  cat:"🔥 Séries",       emoji:"🏆", label:"Semaine parfaite",     desc:"7 jours d'affilée (lundi au dimanche) sous ton objectif. Perfection !",                            check:d=>{const keys=Object.keys(d).sort();for(let i=0;i<=keys.length-7;i++){const wk=keys.slice(i,i+7);if(wk.length===7&&wk.every(k=>data&&data[k]&&data[k].cigs.length<=data[k].goal))return true;}return false;}},
 
-  // 📉 Réduction
-  {id:"halfgoal",  cat:"📉 Réduction",    emoji:"🎯", label:"Mi-objectif",        desc:"Un jour où tu as fumé moitié moins que ton objectif. Tu peux faire encore mieux !",              check:d=>Object.values(d).some(v=>v.cigs.length>0&&v.cigs.length<=(v.goal||10)/2)},
-  {id:"zero",      cat:"📉 Réduction",    emoji:"🚭", label:"Journée zéro",        desc:"Une journée sans aucune cigarette. C'est possible, tu l'as prouvé !",                            check:d=>Object.values(d).some(v=>v.cigs.length===0&&(v.wakeUp||v.note))},
-  {id:"zero3",     cat:"📉 Réduction",    emoji:"✨", label:"3 jours zéro",        desc:"3 journées sans cigarette au total. Ton corps te remercie.",                                      check:d=>Object.values(d).filter(v=>v.cigs.length===0&&(v.wakeUp||v.note)).length>=3},
-  {id:"goaldown",  cat:"📉 Réduction",    emoji:"📉", label:"Objectif abaissé",    desc:"Tu as baissé ton objectif quotidien. Chaque palier compte dans la réduction.",                   check:d=>Object.values(d).some(v=>(v.goal||10)<10)},
-  {id:"morning",   cat:"📉 Réduction",    emoji:"🌅", label:"Lève-tôt résistant",  desc:"Plus d'1h après ton lever avant la première cigarette. Super départ de journée !",              check:d=>Object.values(d).some(v=>{if(!v.wakeUp||!v.cigs.length)return false;const w=v.wakeUp.split(":").map(Number);const wm=w[0]*60+w[1];const first=v.cigs.map(t=>{const[h,m]=t.split(":").map(Number);return h*60+m;}).filter(x=>x>wm).sort()[0];return first!==undefined&&(first-wm)>=60;})},
+  // 📉 Réduction (14)
+  {id:"halfgoal",   cat:"📉 Réduction",    emoji:"🎯", label:"Mi-objectif",          desc:"Un jour où tu as fumé moitié moins que ton objectif. Tu peux faire encore mieux !",                check:d=>Object.values(d).some(v=>v.cigs.length>0&&v.cigs.length<=(v.goal||10)/2)},
+  {id:"zero",       cat:"📉 Réduction",    emoji:"🚭", label:"Journée zéro",          desc:"Une journée sans aucune cigarette. C'est possible, tu l'as prouvé !",                              check:d=>Object.values(d).some(v=>v.cigs.length===0&&(v.wakeUp||v.note))},
+  {id:"zero3",      cat:"📉 Réduction",    emoji:"✨", label:"3 jours zéro",          desc:"3 journées sans cigarette au total. Ton corps te remercie.",                                        check:d=>Object.values(d).filter(v=>v.cigs.length===0&&(v.wakeUp||v.note)).length>=3},
+  {id:"zero7",      cat:"📉 Réduction",    emoji:"🌟", label:"7 jours zéro",          desc:"7 journées sans cigarette. Pas forcément consécutives, mais chacune compte !",                     check:d=>Object.values(d).filter(v=>v.cigs.length===0&&(v.wakeUp||v.note)).length>=7},
+  {id:"zero30",     cat:"📉 Réduction",    emoji:"💎", label:"30 jours zéro",         desc:"30 journées sans cigarette. Une performance extraordinaire.",                                       check:d=>Object.values(d).filter(v=>v.cigs.length===0&&(v.wakeUp||v.note)).length>=30},
+  {id:"goaldown",   cat:"📉 Réduction",    emoji:"📉", label:"Objectif abaissé",      desc:"Tu as baissé ton objectif quotidien. Chaque palier compte dans la réduction.",                    check:d=>Object.values(d).some(v=>(v.goal||10)<10)},
+  {id:"goaldown5",  cat:"📉 Réduction",    emoji:"⬇️", label:"Objectif à 5",          desc:"Tu t'es fixé un objectif de 5 cigarettes max par jour. Ambitieux !",                              check:d=>Object.values(d).some(v=>(v.goal||10)<=5)},
+  {id:"goaldown2",  cat:"📉 Réduction",    emoji:"🔻", label:"Presque zéro",          desc:"Tu t'es fixé un objectif de 2 cigarettes max par jour. Incroyable !",                             check:d=>Object.values(d).some(v=>(v.goal||10)<=2)},
+  {id:"morning",    cat:"📉 Réduction",    emoji:"🌅", label:"Lève-tôt résistant",    desc:"Plus d'1h après ton lever avant la première cigarette. Super départ de journée !",                check:d=>Object.values(d).some(v=>{if(!v.wakeUp||!v.cigs.length)return false;const w=v.wakeUp.split(":").map(Number);const wm=w[0]*60+w[1];const first=v.cigs.map(t=>{const[h,m]=t.split(":").map(Number);return h*60+m;}).filter(x=>x>wm).sort()[0];return first!==undefined&&(first-wm)>=60;})},
+  {id:"morning2h",  cat:"📉 Réduction",    emoji:"☀️", label:"2h de résistance",     desc:"Plus de 2h après ton lever avant la première cigarette. Une maîtrise matinale impressionnante !",  check:d=>Object.values(d).some(v=>{if(!v.wakeUp||!v.cigs.length)return false;const w=v.wakeUp.split(":").map(Number);const wm=w[0]*60+w[1];const first=v.cigs.map(t=>{const[h,m]=t.split(":").map(Number);return h*60+m;}).filter(x=>x>wm).sort()[0];return first!==undefined&&(first-wm)>=120;})},
+  {id:"nolunch",    cat:"📉 Réduction",    emoji:"🍽️", label:"Après-repas résistant", desc:"Tu n'as pas fumé dans l'heure après un déjeuner enregistré. Bravo pour cette habitude !",        check:d=>Object.values(d).some(v=>{if(!v.lunch||!v.cigs.length)return false;const l=v.lunch.split(":").map(Number);const lm=l[0]*60+l[1];const after=v.cigs.map(t=>{const[h,m]=t.split(":").map(Number);return h*60+m;}).filter(x=>x>lm);return after.length===0||after[0]>lm+60;})},
+  {id:"trend3",     cat:"📉 Réduction",    emoji:"📊", label:"Tendance baissière",    desc:"3 jours consécutifs avec une consommation décroissante. Tu es en train de réduire !",             check:d=>{const keys=Object.keys(d).sort();for(let i=2;i<keys.length;i++){const a=d[keys[i-2]]?.cigs.length;const b=d[keys[i-1]]?.cigs.length;const c=d[keys[i]]?.cigs.length;if(a!==undefined&&b!==undefined&&c!==undefined&&a>b&&b>c)return true;}return false;}},
+  {id:"under5",     cat:"📉 Réduction",    emoji:"🕊️", label:"Moins de 5",           desc:"Une journée avec seulement 1 à 5 cigarettes. Presque là !",                                        check:d=>Object.values(d).some(v=>v.cigs.length>=1&&v.cigs.length<=5)},
+  {id:"bigcut",     cat:"📉 Réduction",    emoji:"✂️", label:"Grande coupe",          desc:"Tu as réduit ta consommation de plus de moitié par rapport à ta pire journée.",                   check:d=>{const vals=Object.values(d).map(v=>v.cigs.length);const max=Math.max(...vals,0);return vals.some(v=>v>0&&v<=max/2);}},
 
-  // 🔬 Analyse
-  {id:"analyst",   cat:"🔬 Analyse",      emoji:"🔬", label:"Analyste",           desc:"Tu as renseigné 10 facteurs déclenchants. Tu comprends mieux pourquoi tu fumes.",               check:d=>{let n=0;Object.values(d).forEach(v=>Object.values(v.cigFactors||{}).forEach(f=>{const ids=Array.isArray(f)?f:(f?[f]:[]);n+=ids.filter(Boolean).length;}));return n>=10;}},
-  {id:"analyst50", cat:"🔬 Analyse",      emoji:"🧠", label:"Expert",             desc:"50 facteurs renseignés ! Tu as une connaissance profonde de tes déclencheurs.",                  check:d=>{let n=0;Object.values(d).forEach(v=>Object.values(v.cigFactors||{}).forEach(f=>{const ids=Array.isArray(f)?f:(f?[f]:[]);n+=ids.filter(Boolean).length;}));return n>=50;}},
-  {id:"craving5",  cat:"🔬 Analyse",      emoji:"🌡️", label:"À l'écoute",         desc:"Tu as noté ton envie 5 fois. Comprendre son intensité, c'est apprendre à la gérer.",           check:d=>Object.values(d).reduce((s,v)=>s+Object.keys(v.cigCravings||{}).length,0)>=5},
-  {id:"multifact", cat:"🔬 Analyse",      emoji:"🔗", label:"Multi-causes",       desc:"Tu as sélectionné plusieurs facteurs pour une même cigarette. La réalité est souvent complexe.", check:d=>Object.values(d).some(v=>Object.values(v.cigFactors||{}).some(f=>Array.isArray(f)&&f.length>=2))},
+  // 🔬 Analyse (14)
+  {id:"analyst",    cat:"🔬 Analyse",      emoji:"🔬", label:"Analyste",             desc:"Tu as renseigné 10 facteurs déclenchants. Tu comprends mieux pourquoi tu fumes.",                 check:d=>{let n=0;Object.values(d).forEach(v=>Object.values(v.cigFactors||{}).forEach(f=>{const ids=Array.isArray(f)?f:(f?[f]:[]);n+=ids.filter(Boolean).length;}));return n>=10;}},
+  {id:"analyst50",  cat:"🔬 Analyse",      emoji:"🧠", label:"Expert",               desc:"50 facteurs renseignés ! Tu as une connaissance profonde de tes déclencheurs.",                   check:d=>{let n=0;Object.values(d).forEach(v=>Object.values(v.cigFactors||{}).forEach(f=>{const ids=Array.isArray(f)?f:(f?[f]:[]);n+=ids.filter(Boolean).length;}));return n>=50;}},
+  {id:"analyst200", cat:"🔬 Analyse",      emoji:"🏅", label:"Maître analyste",       desc:"200 facteurs renseignés. Tu es une référence dans la compréhension de tes habitudes.",            check:d=>{let n=0;Object.values(d).forEach(v=>Object.values(v.cigFactors||{}).forEach(f=>{const ids=Array.isArray(f)?f:(f?[f]:[]);n+=ids.filter(Boolean).length;}));return n>=200;}},
+  {id:"craving5",   cat:"🔬 Analyse",      emoji:"🌡️", label:"À l'écoute",           desc:"Tu as noté ton envie 5 fois. Comprendre son intensité, c'est apprendre à la gérer.",             check:d=>Object.values(d).reduce((s,v)=>s+Object.keys(v.cigCravings||{}).length,0)>=5},
+  {id:"craving50",  cat:"🔬 Analyse",      emoji:"📡", label:"Hyper-conscient(e)",    desc:"50 notes d'envie enregistrées. Tu as une conscience fine de tes pulsions.",                        check:d=>Object.values(d).reduce((s,v)=>s+Object.keys(v.cigCravings||{}).length,0)>=50},
+  {id:"multifact",  cat:"🔬 Analyse",      emoji:"🔗", label:"Multi-causes",          desc:"Tu as sélectionné plusieurs facteurs pour une même cigarette. La réalité est souvent complexe.",   check:d=>Object.values(d).some(v=>Object.values(v.cigFactors||{}).some(f=>Array.isArray(f)&&f.length>=2))},
+  {id:"factors7",   cat:"🔬 Analyse",      emoji:"🗂️", label:"Explorateur",          desc:"Tu as utilisé au moins 7 facteurs différents. Tu explores toutes les facettes de tes habitudes.",  check:d=>{const set=new Set();Object.values(d).forEach(v=>Object.values(v.cigFactors||{}).forEach(f=>{const ids=Array.isArray(f)?f:(f?[f]:[]);ids.forEach(id=>set.add(id));}));return set.size>=7;}},
+  {id:"allFactors", cat:"🔬 Analyse",      emoji:"🔭", label:"Cartographe",           desc:"Tu as utilisé tous les types de facteurs disponibles. Rien ne t'échappe !",                       check:d=>{const set=new Set();Object.values(d).forEach(v=>Object.values(v.cigFactors||{}).forEach(f=>{const ids=Array.isArray(f)?f:(f?[f]:[]);ids.forEach(id=>set.add(id));}));return set.size>=15;}},
+  {id:"stress10",   cat:"🔬 Analyse",      emoji:"😰", label:"Stressé(e) observé(e)", desc:"Tu as associé le facteur Stress à au moins 10 cigarettes. Tu identifies cette cause clairement.",  check:d=>{let n=0;Object.values(d).forEach(v=>Object.values(v.cigFactors||{}).forEach(f=>{const ids=Array.isArray(f)?f:(f?[f]:[]);if(ids.includes("stress"))n++;}));return n>=10;}},
+  {id:"cafe10",     cat:"🔬 Analyse",      emoji:"☕", label:"Café & clope",          desc:"10 cigarettes liées au café. Tu connais ce duo bien ancré !",                                      check:d=>{let n=0;Object.values(d).forEach(v=>Object.values(v.cigFactors||{}).forEach(f=>{const ids=Array.isArray(f)?f:(f?[f]:[]);if(ids.includes("cafe"))n++;}));return n>=10;}},
+  {id:"lowcraving", cat:"🔬 Analyse",      emoji:"🧊", label:"Envie légère",          desc:"Tu as noté une envie de 1/5 au moins 5 fois. Tu fumes parfois presque sans envie.",               check:d=>{let n=0;Object.values(d).forEach(v=>Object.values(v.cigCravings||{}).forEach(c=>{if(c===1)n++;}));return n>=5;}},
+  {id:"highcraving",cat:"🔬 Analyse",      emoji:"🔥", label:"Envie intense",         desc:"Tu as noté une envie de 5/5. Ces moments sont les plus durs — tu les documentes courageusement.", check:d=>Object.values(d).some(v=>Object.values(v.cigCravings||{}).some(c=>c===5))},
+  {id:"avgcraving", cat:"🔬 Analyse",      emoji:"📈", label:"Envie moyenne",         desc:"Ta moyenne d'envie sur une journée est de 3 ou plus. Ces données t'aident à comprendre.",         check:d=>Object.values(d).some(v=>{const cr=Object.values(v.cigCravings||{});return cr.length>=3&&cr.reduce((a,b)=>a+b,0)/cr.length>=3;})},
+  {id:"nofactor",   cat:"🔬 Analyse",      emoji:"🧘", label:"Serein(e)",             desc:"Une journée sans facteur de stress renseigné. Parfois on fume sans raison particulière.",          check:d=>Object.values(d).some(v=>v.cigs.length>0&&Object.keys(v.cigFactors||{}).length===0)},
 
-  // 📊 Volume
-  {id:"total50",   cat:"📊 Volume",       emoji:"🔢", label:"50 trackées",        desc:"50 cigarettes enregistrées au total. Chaque entrée est une donnée qui t'aide.",                 check:d=>Object.values(d).reduce((s,v)=>s+(v.cigs?.length||0),0)>=50},
-  {id:"total200",  cat:"📊 Volume",       emoji:"💯", label:"200 trackées",       desc:"200 cigarettes enregistrées. Tu es très régulier(ère) dans ton suivi.",                          check:d=>Object.values(d).reduce((s,v)=>s+(v.cigs?.length||0),0)>=200},
-  {id:"total500",  cat:"📊 Volume",       emoji:"🏆", label:"500 trackées",       desc:"500 cigarettes trackées. Un engagement total dans la compréhension de tes habitudes.",           check:d=>Object.values(d).reduce((s,v)=>s+(v.cigs?.length||0),0)>=500},
-  {id:"consistent",cat:"📊 Volume",       emoji:"📆", label:"Assidu(e)",          desc:"Tu as tracké 10 jours différents. La régularité du suivi est la clé du succès.",                check:d=>Object.keys(d).length>=10},
+  // 📊 Volume & régularité (14)
+  {id:"total10",    cat:"📊 Volume",       emoji:"🔟", label:"10 trackées",           desc:"Tes 10 premières cigarettes enregistrées. Chaque donnée compte !",                                check:d=>Object.values(d).reduce((s,v)=>s+(v.cigs?.length||0),0)>=10},
+  {id:"total50",    cat:"📊 Volume",       emoji:"🔢", label:"50 trackées",           desc:"50 cigarettes enregistrées au total. Chaque entrée est une donnée qui t'aide.",                   check:d=>Object.values(d).reduce((s,v)=>s+(v.cigs?.length||0),0)>=50},
+  {id:"total200",   cat:"📊 Volume",       emoji:"💯", label:"200 trackées",          desc:"200 cigarettes enregistrées. Tu es très régulier(ère) dans ton suivi.",                            check:d=>Object.values(d).reduce((s,v)=>s+(v.cigs?.length||0),0)>=200},
+  {id:"total500",   cat:"📊 Volume",       emoji:"🏆", label:"500 trackées",          desc:"500 cigarettes trackées. Un engagement total dans la compréhension de tes habitudes.",             check:d=>Object.values(d).reduce((s,v)=>s+(v.cigs?.length||0),0)>=500},
+  {id:"total1000",  cat:"📊 Volume",       emoji:"🎖️", label:"1000 trackées",        desc:"1000 cigarettes enregistrées. Un an de données — tu es un(e) vrai(e) expert(e) de toi-même.",    check:d=>Object.values(d).reduce((s,v)=>s+(v.cigs?.length||0),0)>=1000},
+  {id:"consistent", cat:"📊 Volume",       emoji:"📆", label:"Assidu(e)",             desc:"Tu as tracké 10 jours différents. La régularité du suivi est la clé du succès.",                  check:d=>Object.keys(d).length>=10},
+  {id:"consistent50",cat:"📊 Volume",      emoji:"🗓️", label:"Très assidu(e)",       desc:"50 jours de suivi différents. Une habitude solidement installée !",                                check:d=>Object.keys(d).length>=50},
+  {id:"sameday",    cat:"📊 Volume",       emoji:"⚡", label:"Journée intense",       desc:"Plus de 20 cigarettes enregistrées en une seule journée. Ces données t'aident à te voir clairement.", check:d=>Object.values(d).some(v=>v.cigs.length>=20)},
+  {id:"manytimes",  cat:"📊 Volume",       emoji:"🕰️", label:"Toutes les heures",    desc:"Au moins 15 cigarettes dans une journée. Tu fumes souvent — chaque heure compte.",                check:d=>Object.values(d).some(v=>v.cigs.length>=15)},
+  {id:"minday",     cat:"📊 Volume",       emoji:"🕊️", label:"Petite journée",       desc:"Seulement 1 ou 2 cigarettes enregistrées dans une journée. C'est remarquable !",                  check:d=>Object.values(d).some(v=>v.cigs.length>=1&&v.cigs.length<=2)},
+  {id:"samegoal",   cat:"📊 Volume",       emoji:"🎯", label:"Exactement l'objectif",  desc:"Un jour où tu as consommé exactement ton nombre objectif. Précision parfaite !",                  check:d=>Object.values(d).some(v=>v.cigs.length===v.goal&&v.goal>0)},
+  {id:"varlow",     cat:"📊 Volume",       emoji:"📏", label:"Régulier(ère)",          desc:"5 jours consécutifs avec moins de 2 de variation. Tu es stable et prévisible.",                   check:d=>{const keys=Object.keys(d).sort();for(let i=4;i<keys.length;i++){const slice=keys.slice(i-4,i+1).map(k=>d[k]?.cigs.length||0);const mx=Math.max(...slice),mn=Math.min(...slice);if(mx-mn<=2)return true;}return false;}},
+  {id:"earlycig",   cat:"📊 Volume",       emoji:"🌄", label:"Première du matin",     desc:"Tu as enregistré une cigarette avant 8h du matin. Tu connais tes habitudes matinales.",          check:d=>Object.values(d).some(v=>v.cigs.some(t=>parseInt(t)<8*60))},
+  {id:"latecig",    cat:"📊 Volume",       emoji:"🌃", label:"Dernière du soir",       desc:"Tu as enregistré une cigarette après 23h. Tu surveilles même les habitudes nocturnes.",           check:d=>Object.values(d).some(v=>v.cigs.some(t=>parseInt(t)>=23*60))},
 
-  // 💰 Portefeuille
-  {id:"wallet1",   cat:"💰 Portefeuille", emoji:"💶", label:"Première dépense",   desc:"Tu as enregistré ta première dépense tabac. Voir le coût réel, ça change tout.",               check:(d,e)=>e&&e.length>=1},
-  {id:"wallet10",  cat:"💰 Portefeuille", emoji:"💸", label:"Comptable",          desc:"10 dépenses enregistrées. Tu as une vision claire de ce que tu dépenses.",                       check:(d,e)=>e&&e.length>=10},
-  {id:"saving1",   cat:"💰 Portefeuille", emoji:"🐷", label:"Petite tirelire",    desc:"Tu as économisé au moins 10€ par rapport à ton habitude. C'est un début !",                     check:d=>{const vals=Object.values(d);if(!vals.length)return false;const cpCig=12/20;const usualPerDay=20*cpCig;const actual=vals.reduce((s,v)=>s+(v.cigs?.length||0),0)/vals.length*cpCig;return(usualPerDay-actual)*vals.length>=10;}},
+  // 💰 Portefeuille (10)
+  {id:"wallet1",    cat:"💰 Portefeuille", emoji:"💶", label:"Première dépense",      desc:"Tu as enregistré ta première dépense tabac. Voir le coût réel, ça change tout.",                 check:(d,e)=>e&&e.length>=1},
+  {id:"wallet10",   cat:"💰 Portefeuille", emoji:"💸", label:"Comptable",             desc:"10 dépenses enregistrées. Tu as une vision claire de ce que tu dépenses.",                         check:(d,e)=>e&&e.length>=10},
+  {id:"wallet30",   cat:"💰 Portefeuille", emoji:"🧾", label:"Expert comptable",      desc:"30 dépenses enregistrées. Tu gères tes finances tabac comme un pro.",                             check:(d,e)=>e&&e.length>=30},
+  {id:"saving1",    cat:"💰 Portefeuille", emoji:"🐷", label:"Petite tirelire",       desc:"Tu as économisé au moins 10€ par rapport à ton habitude. C'est un début !",                      check:d=>{const vals=Object.values(d);if(!vals.length)return false;const cpCig=12/20;const usualPerDay=20*cpCig;const actual=vals.reduce((s,v)=>s+(v.cigs?.length||0),0)/vals.length*cpCig;return(usualPerDay-actual)*vals.length>=10;}},
+  {id:"saving50",   cat:"💰 Portefeuille", emoji:"💰", label:"Tirelire bien remplie", desc:"50€ économisés ! C'est déjà un bon dîner au restaurant.",                                          check:d=>{const vals=Object.values(d);if(!vals.length)return false;const cpCig=12/20;const usualPerDay=20*cpCig;const actual=vals.reduce((s,v)=>s+(v.cigs?.length||0),0)/vals.length*cpCig;return(usualPerDay-actual)*vals.length>=50;}},
+  {id:"saving100",  cat:"💰 Portefeuille", emoji:"🏦", label:"100€ économisés",       desc:"100€ économisés grâce à ta réduction. Un vrai investissement dans ta santé.",                     check:d=>{const vals=Object.values(d);if(!vals.length)return false;const cpCig=12/20;const usualPerDay=20*cpCig;const actual=vals.reduce((s,v)=>s+(v.cigs?.length||0),0)/vals.length*cpCig;return(usualPerDay-actual)*vals.length>=100;}},
+  {id:"saving500",  cat:"💰 Portefeuille", emoji:"💎", label:"500€ économisés",       desc:"500€ économisés ! C'est un voyage, un appareil photo, une nouvelle expérience.",                  check:d=>{const vals=Object.values(d);if(!vals.length)return false;const cpCig=12/20;const usualPerDay=20*cpCig;const actual=vals.reduce((s,v)=>s+(v.cigs?.length||0),0)/vals.length*cpCig;return(usualPerDay-actual)*vals.length>=500;}},
+  {id:"multicat",   cat:"💰 Portefeuille", emoji:"🗂️", label:"Dépenses variées",      desc:"Tu as utilisé plusieurs catégories de dépenses. Tu as une vue complète de tes achats tabac.",    check:(d,e)=>{if(!e)return false;const cats=new Set(e.map(x=>x.cat));return cats.size>=3;}},
+  {id:"bigpack",    cat:"💰 Portefeuille", emoji:"📦", label:"Gros achat",            desc:"Tu as enregistré une dépense de plus de 20€ en une fois. Les cartouches, ça revient cher.",       check:(d,e)=>e&&e.some(x=>x.amount>=20)},
+  {id:"budget",     cat:"💰 Portefeuille", emoji:"📋", label:"Budgétisé",             desc:"Tu suis tes dépenses depuis au moins 2 semaines. Une vraie discipline financière.",               check:(d,e)=>{if(!e||e.length<2)return false;const dates=e.map(x=>x.date).sort();const first=new Date(dates[0]),last=new Date(dates[dates.length-1]);return(last-first)/(1000*60*60*24)>=14;}},
 
-  // 🌙 Bien-être
-  {id:"sleep8",    cat:"🌙 Bien-être",    emoji:"😴", label:"Bonne nuit",         desc:"Tu as enregistré un coucher et un lever avec moins de 10 cigs dans la journée.",               check:d=>Object.values(d).some(v=>v.bedtime&&v.wakeUp&&v.cigs.length<=10)},
-  {id:"interval1h",cat:"🌙 Bien-être",    emoji:"⏳", label:"Patience",           desc:"Au moins une journée où l'intervalle moyen entre tes cigarettes dépasse 1 heure.",              check:d=>Object.values(d).some(v=>{const times=v.cigs.map(t=>{const[h,m]=t.split(":").map(Number);return h*60+m;}).sort((a,b)=>a-b);if(times.length<2)return false;let sum=0;for(let i=1;i<times.length;i++)sum+=times[i]-times[i-1];return sum/(times.length-1)>=60;})},
-  {id:"weekend",   cat:"🌙 Bien-être",    emoji:"🏖️", label:"Week-end maîtrisé", desc:"Un samedi ou dimanche sous ton objectif. Même le week-end, tu gardes le contrôle !",           check:d=>Object.entries(d).some(([k,v])=>{const day=new Date(k+"T12:00:00").getDay();return(day===0||day===6)&&v.cigs.length<=v.goal;})},
-  {id:"nofactor",  cat:"🌙 Bien-être",    emoji:"🧘", label:"Serein(e)",          desc:"Une journée sans facteur de stress renseigné. Parfois on fume sans raison particulière.",       check:d=>Object.values(d).some(v=>v.cigs.length>0&&Object.keys(v.cigFactors||{}).length===0)},
+  // 🌙 Bien-être (14)
+  {id:"sleep8",     cat:"🌙 Bien-être",    emoji:"😴", label:"Bonne nuit",            desc:"Tu as enregistré un coucher et un lever avec moins de 10 cigs dans la journée.",                 check:d=>Object.values(d).some(v=>v.bedtime&&v.wakeUp&&v.cigs.length<=10)},
+  {id:"longsleep",  cat:"🌙 Bien-être",    emoji:"🛌", label:"Longue nuit",           desc:"Plus de 8h entre ton coucher et ton lever. Le sommeil est un allié de la réduction.",             check:d=>Object.values(d).some(v=>{if(!v.bedtime||!v.wakeUp)return false;const[bh,bm]=v.bedtime.split(":").map(Number);const[wh,wm]=v.wakeUp.split(":").map(Number);const dur=bh>wh?(24*60-bh*60-bm+wh*60+wm):(wh*60+wm-bh*60-bm);return dur>=480;})},
+  {id:"interval1h", cat:"🌙 Bien-être",    emoji:"⏳", label:"Patience",              desc:"Au moins une journée où l'intervalle moyen entre tes cigarettes dépasse 1 heure.",                check:d=>Object.values(d).some(v=>{const times=v.cigs.map(t=>{const[h,m]=t.split(":").map(Number);return h*60+m;}).sort((a,b)=>a-b);if(times.length<2)return false;let sum=0;for(let i=1;i<times.length;i++)sum+=times[i]-times[i-1];return sum/(times.length-1)>=60;})},
+  {id:"interval2h", cat:"🌙 Bien-être",    emoji:"⌛", label:"Grande patience",       desc:"Intervalle moyen de plus de 2h entre tes cigarettes sur une journée. Maîtrise absolue.",          check:d=>Object.values(d).some(v=>{const times=v.cigs.map(t=>{const[h,m]=t.split(":").map(Number);return h*60+m;}).sort((a,b)=>a-b);if(times.length<2)return false;let sum=0;for(let i=1;i<times.length;i++)sum+=times[i]-times[i-1];return sum/(times.length-1)>=120;})},
+  {id:"nosmoke2h",  cat:"🌙 Bien-être",    emoji:"⏱️", label:"2h sans fumer",        desc:"Au moins 2h consécutives sans cigarette dans une journée enregistrée. Bien !",                    check:d=>Object.values(d).some(v=>{const times=v.cigs.map(t=>{const[h,m]=t.split(":").map(Number);return h*60+m;}).sort((a,b)=>a-b);for(let i=1;i<times.length;i++)if(times[i]-times[i-1]>=120)return true;return false;})},
+  {id:"nofactory",  cat:"🌙 Bien-être",    emoji:"🌬️", label:"Sans stress",          desc:"5 jours enregistrés sans facteur Stress. Tu traverses des périodes calmes.",                    check:d=>Object.values(d).filter(v=>v.cigs.length>0&&!Object.values(v.cigFactors||{}).some(f=>{const ids=Array.isArray(f)?f:(f?[f]:[]);return ids.includes("stress");})).length>=5},
+  {id:"sporty",     cat:"🌙 Bien-être",    emoji:"🏃", label:"Actif & conscient",     desc:"Tu as associé Sport à une cigarette. Tu sais quand l'effort et la clope se croisent.",           check:d=>Object.values(d).some(v=>Object.values(v.cigFactors||{}).some(f=>{const ids=Array.isArray(f)?f:(f?[f]:[]);return ids.includes("sport");}))},
+  {id:"nosmokeaft", cat:"🌙 Bien-être",    emoji:"🍃", label:"Repas sans clope",      desc:"Un jour où tu n'as pas fumé dans les 30 min après un repas enregistré.",                         check:d=>Object.values(d).some(v=>{if(!v.dinner&&!v.lunch)return false;const meal=v.dinner||v.lunch;const[mh,mm]=meal.split(":").map(Number);const mealM=mh*60+mm;return!v.cigs.some(t=>{const[h,m]=t.split(":").map(Number);const tm=h*60+m;return tm>mealM&&tm<mealM+30;});})},
+  {id:"lowstress",  cat:"🌙 Bien-être",    emoji:"🧘", label:"Journée zen",           desc:"Une journée avec des cigarettes mais zéro facteur Stress ET envie ≤ 2. Jour tranquille !",      check:d=>Object.values(d).some(v=>{const hasCigs=v.cigs.length>0;const noStress=!Object.values(v.cigFactors||{}).some(f=>{const ids=Array.isArray(f)?f:(f?[f]:[]);return ids.includes("stress");});const lowCr=Object.values(v.cigCravings||{}).every(c=>c<=2);return hasCigs&&noStress&&lowCr&&Object.keys(v.cigCravings||{}).length>0;})},
+  {id:"social5",    cat:"🌙 Bien-être",    emoji:"🎉", label:"Social observé",        desc:"5 cigarettes liées à un contexte social. Tu identifies comment les autres influencent ta conso.",  check:d=>{let n=0;Object.values(d).forEach(v=>Object.values(v.cigFactors||{}).forEach(f=>{const ids=Array.isArray(f)?f:(f?[f]:[]);if(ids.includes("social"))n++;}));return n>=5;}},
+  {id:"boredom",    cat:"🌙 Bien-être",    emoji:"😑", label:"Ennui conscient",       desc:"Tu as associé l'ennui à une cigarette. Reconnaître cette cause, c'est pouvoir la contourner.",  check:d=>Object.values(d).some(v=>Object.values(v.cigFactors||{}).some(f=>{const ids=Array.isArray(f)?f:(f?[f]:[]);return ids.includes("ennui");}))},
+  {id:"goodmonth",  cat:"🌙 Bien-être",    emoji:"🌈", label:"Bon mois",              desc:"Plus de 20 jours sous objectif dans le même mois calendaire. Un très beau mois !",               check:d=>{const months={};Object.entries(d).forEach(([k,v])=>{const m=k.slice(0,7);if(!months[m])months[m]=0;if(v.cigs.length<=v.goal)months[m]++;});return Object.values(months).some(c=>c>=20);}},
+  {id:"improving",  cat:"🌙 Bien-être",    emoji:"📐", label:"En progrès",            desc:"Ta moyenne hebdo de cette semaine est meilleure que celle de la semaine dernière. Continue !",   check:d=>{const keys=Object.keys(d).sort();if(keys.length<14)return false;const recent=keys.slice(-7).reduce((s,k)=>s+(d[k]?.cigs.length||0),0)/7;const prev=keys.slice(-14,-7).reduce((s,k)=>s+(d[k]?.cigs.length||0),0)/7;return recent<prev;}},
+  {id:"noalcohol",  cat:"🌙 Bien-être",    emoji:"🫗",  label:"Sobre et conscient",   desc:"5 jours trackés sans facteur Alcool. Tu sais que l'alcool et la clope font souvent duo.",       check:d=>Object.values(d).filter(v=>v.cigs.length>0&&!Object.values(v.cigFactors||{}).some(f=>{const ids=Array.isArray(f)?f:(f?[f]:[]);return ids.includes("alcool");})).length>=5},
+
+  // 🏅 Spéciaux (14)
+  {id:"perfect5",   cat:"🏅 Spéciaux",    emoji:"⭐", label:"5 jours parfaits",      desc:"5 jours exactement à l'objectif ou en dessous sur une période de 7 jours. Très régulier !",     check:d=>{const keys=Object.keys(d).sort();for(let i=6;i<keys.length;i++){const slice=keys.slice(i-6,i+1);const under=slice.filter(k=>d[k]&&d[k].cigs.length<=d[k].goal).length;if(under>=5)return true;}return false;}},
+  {id:"nolapse",    cat:"🏅 Spéciaux",    emoji:"🛡️", label:"Aucun dérapage",        desc:"10 jours trackés sans jamais dépasser ton objectif. Une discipline exemplaire !",               check:d=>{const keys=Object.keys(d).sort();if(keys.length<10)return false;return keys.slice(-10).every(k=>d[k]&&d[k].cigs.length<=d[k].goal);}},
+  {id:"marathon",   cat:"🏅 Spéciaux",    emoji:"🏃", label:"Marathon",               desc:"Tu as tracké pendant 100 jours différents. Un vrai coureur de fond du changement.",             check:d=>Object.keys(d).length>=100},
+  {id:"explorer",   cat:"🏅 Spéciaux",    emoji:"🧭", label:"Explorateur",            desc:"Tu as utilisé plus de 10 types de facteurs différents. Tu explores tout ton paysage intérieur.", check:d=>{const set=new Set();Object.values(d).forEach(v=>Object.values(v.cigFactors||{}).forEach(f=>{const ids=Array.isArray(f)?f:(f?[f]:[]);ids.forEach(id=>set.add(id));}));return set.size>=10;}},
+  {id:"tuesday",    cat:"🏅 Spéciaux",    emoji:"🗓️", label:"Mardi-bilan",           desc:"Tu as tracké chaque mardi pendant 4 semaines. Tu as un rendez-vous avec toi-même.",              check:d=>Object.entries(d).filter(([k])=>new Date(k+"T12:00:00").getDay()===2).length>=4},
+  {id:"allevents",  cat:"🏅 Spéciaux",    emoji:"📋", label:"Journal complet",        desc:"10 jours avec tous les événements renseignés (lever, déjeuner, dîner, coucher).",               check:d=>Object.values(d).filter(v=>v.wakeUp&&v.lunch&&v.dinner&&v.bedtime).length>=10},
+  {id:"newmonth",   cat:"🏅 Spéciaux",    emoji:"🌙", label:"Nouveau mois",           desc:"Tu as tracké le premier jour d'un nouveau mois. Bonne résolution maintenue !",                   check:d=>Object.keys(d).some(k=>k.endsWith("-01"))},
+  {id:"newyear",    cat:"🏅 Spéciaux",    emoji:"🎆", label:"Nouvelle année",         desc:"Tu as tracké un 1er janvier. Le meilleur début d'année qui soit.",                               check:d=>Object.keys(d).some(k=>k.endsWith("-01-01"))},
+  {id:"birthday",   cat:"🏅 Spéciaux",    emoji:"🎂", label:"Anniversaire du suivi",  desc:"Tu as utilisé l'app pendant 365 jours. Un an complet de connaissance de soi !",                check:d=>Object.keys(d).length>=365},
+  {id:"curious",    cat:"🏅 Spéciaux",    emoji:"🔍", label:"Curieux(se)",            desc:"Tu as renseigné des données très détaillées (facteurs + envie + note) sur une même journée.",  check:d=>Object.values(d).some(v=>Object.keys(v.cigFactors||{}).length>0&&Object.keys(v.cigCravings||{}).length>0&&v.note&&v.note.trim().length>0)},
+  {id:"oneaday",    cat:"🏅 Spéciaux",    emoji:"🌸", label:"Une par jour",           desc:"Exactement 1 cigarette pendant 3 jours différents. La maîtrise à son maximum.",                 check:d=>Object.values(d).filter(v=>v.cigs.length===1).length>=3},
+  {id:"steadfast",  cat:"🏅 Spéciaux",    emoji:"⚓", label:"Ancré(e)",              desc:"Tu as tracké chaque jour pendant 7 jours consécutifs (même ceux à 0 cig).",                      check:d=>{const keys=Object.keys(d).sort();for(let i=6;i<keys.length;i++){const slice=keys.slice(i-6,i+1);const dates=slice.map(k=>new Date(k).getTime());let consec=true;for(let j=1;j<dates.length;j++)if(dates[j]-dates[j-1]>86400000*1.5){consec=false;break;}if(consec)return true;}return false;}},
+  {id:"comeback3",  cat:"🏅 Spéciaux",    emoji:"🌠", label:"Étoile filante",        desc:"Après 3 jours de dépassement, tu as fait une journée zéro. Un rebond spectaculaire !",          check:d=>{const keys=Object.keys(d).sort();for(let i=3;i<keys.length;i++){const over=keys.slice(i-3,i).every(k=>d[k]&&d[k].cigs.length>d[k].goal);const zero=d[keys[i]]&&d[keys[i]].cigs.length===0;if(over&&zero)return true;}return false;}},
+  {id:"allcats",    cat:"🏅 Spéciaux",    emoji:"🌈", label:"Collectionneur",        desc:"Tu as débloqué au moins un badge dans chaque catégorie principale. Un parcours complet !",       check:()=>false},// débloqué manuellement si toutes cats
 ];
 const BADGE_CATS = [...new Set(BADGES.map(b=>b.cat))];
 
@@ -433,7 +540,7 @@ const HomeTab = ({data,setData,settings,setSettings,expenses}) => {
       </div>
       <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:stC,marginBottom:18}}>
         <span>{Math.max(0,day.goal-day.cigs.length)>0?`Encore ${day.goal-day.cigs.length} avant l'objectif`:`⚠️ Dépassé de ${day.cigs.length-day.goal}`}</span>
-        <span>~{(day.cigs.length*cpCig).toFixed(2)}{settings.currency}</span>
+        {settings.showMoney!==false&&<span>~{(day.cigs.length*cpCig).toFixed(2)}{settings.currency}</span>}
       </div>
       <button onClick={()=>setShowModal(true)} style={{background:"linear-gradient(135deg,#fca5a5,#fb7185)",border:"none",borderRadius:999,padding:"14px 40px",fontSize:16,fontWeight:700,color:"white",cursor:"pointer",boxShadow:"0 6px 20px rgba(251,113,133,0.35)",display:"inline-flex",alignItems:"center",gap:10}}>
         <Icon name="plus" size={20} color="white"/> Consommer
@@ -514,7 +621,7 @@ const CalendarTab = ({data,setData,settings,expenses}) => {
               {cnt>0&&<div style={{fontSize:16,fontWeight:900,color:dark?"#f0d0c8":"#5a3a30"}}>{cnt}</div>}
               <div style={{display:"flex",gap:2,flexWrap:"wrap",justifyContent:"center"}}>
                 {d?.note&&<span style={{fontSize:7}}>📝</span>}
-                {hasExp&&<span style={{fontSize:8,fontWeight:800,color:dark?"#e0c060":"#9a7020"}}>€</span>}
+                {hasExp&&settings.showMoney!==false&&<span style={{fontSize:8,fontWeight:800,color:dark?"#e0c060":"#9a7020"}}>€</span>}
                 {ph&&<span style={{fontSize:7}}>{ph.emoji}</span>}
               </div>
             </div>;
@@ -531,7 +638,7 @@ const CalendarTab = ({data,setData,settings,expenses}) => {
           </div>
           <div style={{display:"flex",gap:6}}>
             <button onClick={()=>{setAddCig(a=>!a);setEditNote(false);setShowExpDetail(false);}} style={{background:dark?"rgba(252,165,165,0.18)":"rgba(252,165,165,0.3)",border:"none",borderRadius:10,padding:"5px 10px",cursor:"pointer",fontSize:12,color:dark?"#f0a898":"#c05040",fontWeight:700}}>+ Cig</button>
-            {selExp.length>0&&<button onClick={()=>{setShowExpDetail(e=>!e);setEditNote(false);setAddCig(false);}} style={{background:dark?"rgba(253,230,138,0.15)":"rgba(253,230,138,0.4)",border:"none",borderRadius:10,padding:"5px 10px",cursor:"pointer",fontSize:12,color:dark?"#e0c060":"#7a6030",fontWeight:700}}>💸 {selExpTotal.toFixed(0)}{settings.currency}</button>}
+            {selExp.length>0&&settings.showMoney!==false&&<button onClick={()=>{setShowExpDetail(e=>!e);setEditNote(false);setAddCig(false);}} style={{background:dark?"rgba(253,230,138,0.15)":"rgba(253,230,138,0.4)",border:"none",borderRadius:10,padding:"5px 10px",cursor:"pointer",fontSize:12,color:dark?"#e0c060":"#7a6030",fontWeight:700}}>💸 {selExpTotal.toFixed(0)}{settings.currency}</button>}
             <button onClick={()=>{setEditNote(e=>!e);setAddCig(false);setShowExpDetail(false);}} style={{background:dark?"rgba(253,230,138,0.15)":"rgba(253,230,138,0.4)",border:"none",borderRadius:10,padding:"5px 10px",cursor:"pointer",fontSize:12,color:dark?"#e0c060":"#7a6030",fontWeight:600}}>{editNote?"✓":"📝"}</button>
           </div>
         </div>
@@ -560,14 +667,32 @@ const StatsTab = ({data,settings,setSettings,expenses}) => {
   const allKeys = Object.keys(data).sort();
   const days = keys.map(k=>data[k]).filter(Boolean);
   const keyedDays = keys.filter(k=>data[k]).map(k=>({k,d:data[k]}));
-  const total = days.reduce((s,d)=>s+d.cigs.length,0);
-  const avg   = days.length?(total/days.length).toFixed(1):0;
-  const maxD  = days.reduce((m,d)=>Math.max(m,d.cigs.length),0);
-  const sorted=[...days].filter(d=>d.cigs.length>0).map(d=>d.cigs.length).sort((a,b)=>a-b);
+
+  // ══ Filtre produit — basé sur les données réelles ══
+  const presentTypesSet = new Set();
+  days.forEach(d=>d.cigs.forEach((_,i)=>presentTypesSet.add((d.cigTypes||{})[i]||"cigarette")));
+  const presentTypes = SMOKE_TYPES.filter(t=>presentTypesSet.has(t.id));
+  const multiProduct = presentTypes.length > 1;
+  const [filterType, setFilterType] = useState("all");
+  const effectiveType = multiProduct ? filterType : "all";
+
+  // Filtre les cigs selon le produit sélectionné
+  const filterCigs = (d) => {
+    if(effectiveType === "all") return d.cigs;
+    return d.cigs.filter((_,i) => ((d.cigTypes||{})[i]||"cigarette") === effectiveType);
+  };
+  // Jours filtrés
+  const filteredDays = days.map(d => ({...d, _cigs: filterCigs(d)}));
+  const filteredKeyed = keyedDays.map(({k,d}) => ({k, d:{...d, _cigs: filterCigs(d)}}));
+
+  const total = filteredDays.reduce((s,d)=>s+d._cigs.length,0);
+  const avg   = filteredDays.length?(total/filteredDays.length).toFixed(1):0;
+  const maxD  = filteredDays.reduce((m,d)=>Math.max(m,d._cigs.length),0);
+  const sorted=[...filteredDays].filter(d=>d._cigs.length>0).map(d=>d._cigs.length).sort((a,b)=>a-b);
   const median=sorted.length?sorted[Math.floor(sorted.length/2)]:null;
-  const gr=days.filter(d=>d.cigs.length<=d.goal).length;
-  const grP=days.length?Math.round((gr/days.length)*100):0;
-  const streak=(()=>{let s=0;for(const k of[...allKeys].reverse()){const d=data[k];if(d&&d.cigs.length<=d.goal)s++;else break;}return s;})();
+  const gr=filteredDays.filter(d=>d._cigs.length<=d.goal).length;
+  const grP=filteredDays.length?Math.round((gr/filteredDays.length)*100):0;
+  const streak=(()=>{let s=0;for(const k of[...allKeys].reverse()){const d=data[k];if(d&&(filterCigs(d).length)<=(d.goal||10))s++;else break;}return s;})();
   const cpCig=settings.pricePerPack/settings.cigsPerPack;
   const estCost=(total*cpCig).toFixed(2);
   const ps=keys[0]||today(), pe=keys[keys.length-1]||today();
@@ -578,13 +703,13 @@ const StatsTab = ({data,settings,setSettings,expenses}) => {
   days.forEach(d=>{const types=d.cigTypes||{};d.cigs.forEach((_,i)=>{const t=types[i]||"cigarette";typeStats[t]=(typeStats[t]||0)+1;});});
 
   const hc=Array(24).fill(0);
-  days.forEach(d=>d.cigs.forEach(t=>{const m=msm(t);if(m!==null)hc[Math.floor(m/60)]++;}));
+  filteredDays.forEach(d=>d._cigs.forEach(t=>{const m=msm(t);if(m!==null)hc[Math.floor(m/60)]++;}));
   const mxH=Math.max(...hc,1), pkH=hc.indexOf(Math.max(...hc));
 
   // ── Intervalle moyen entre cigs ──
   const allIntervals=[];
-  days.forEach(d=>{
-    const times=d.cigs.map(t=>msm(t)).filter(x=>x!==null).sort((a,b)=>a-b);
+  filteredDays.forEach(d=>{
+    const times=d._cigs.map(t=>msm(t)).filter(x=>x!==null).sort((a,b)=>a-b);
     for(let i=1;i<times.length;i++) allIntervals.push(times[i]-times[i-1]);
   });
   const avgInterval=allIntervals.length?Math.round(allIntervals.reduce((a,b)=>a+b,0)/allIntervals.length):null;
@@ -592,43 +717,43 @@ const StatsTab = ({data,settings,setSettings,expenses}) => {
   const maxInterval=allIntervals.length?Math.max(...allIntervals):null;
 
   // ── Courbe d'évolution (max 30 points) ──
-  const chartKeys = keyedDays.slice(-30);
-  const chartMax = Math.max(...chartKeys.map(x=>x.d.cigs.length),1);
+  const chartKeys = filteredKeyed.slice(-30);
+  const chartMax = Math.max(...chartKeys.map(x=>x.d._cigs.length),1);
 
   // ── Répartition par moment de la journée ──
   const slots={matin:0,apresmidi:0,soir:0,nuit:0};
-  days.forEach(d=>d.cigs.forEach(t=>{const m=msm(t);if(m===null)return;const h=m/60;if(h>=6&&h<12)slots.matin++;else if(h>=12&&h<18)slots.apresmidi++;else if(h>=18&&h<23)slots.soir++;else slots.nuit++;}));
+  filteredDays.forEach(d=>d._cigs.forEach(t=>{const m=msm(t);if(m===null)return;const h=m/60;if(h>=6&&h<12)slots.matin++;else if(h>=12&&h<18)slots.apresmidi++;else if(h>=18&&h<23)slots.soir++;else slots.nuit++;}));
   const slotTotal=Object.values(slots).reduce((a,b)=>a+b,0)||1;
   const slotDefs=[{k:"matin",l:"Matin",e:"🌅",h:"6h–12h"},{k:"apresmidi",l:"Après-midi",e:"☀️",h:"12h–18h"},{k:"soir",l:"Soir",e:"🌆",h:"18h–23h"},{k:"nuit",l:"Nuit",e:"🌙",h:"23h–6h"}];
 
   // ── Jour de la semaine ──
   const dowCounts=Array(7).fill(0); const dowLabels=["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"];
-  keyedDays.forEach(({k,d})=>{const dow=(new Date(k+"T12:00:00").getDay()+6)%7;dowCounts[dow]+=d.cigs.length;});
+  filteredKeyed.forEach(({k,d})=>{const dow=(new Date(k+"T12:00:00").getDay()+6)%7;dowCounts[dow]+=d._cigs.length;});
   const dowDays=Array(7).fill(0);
-  keyedDays.forEach(({k})=>{const dow=(new Date(k+"T12:00:00").getDay()+6)%7;dowDays[dow]++;});
+  filteredKeyed.forEach(({k})=>{const dow=(new Date(k+"T12:00:00").getDay()+6)%7;dowDays[dow]++;});
   const dowAvg=dowCounts.map((c,i)=>dowDays[i]>0?+(c/dowDays[i]).toFixed(1):0);
   const maxDow=Math.max(...dowAvg,1);
   const peakDow=dowAvg.indexOf(Math.max(...dowAvg));
 
   // ── Lien lever/coucher et conso ──
   const sleepStats={short:[],normal:[],long:[]};
-  keyedDays.forEach(({k,d})=>{
+  filteredKeyed.forEach(({k,d})=>{
     const w=msm(d.wakeUp), b=msm(d.bedtime);
     if(w===null||b===null)return;
     const awake=b>w?b-w:b+1440-w;
     const bucket=awake<480?"short":awake<720?"normal":"long";
-    sleepStats[bucket].push(d.cigs.length);
+    sleepStats[bucket].push(d._cigs.length);
   });
   const sleepAvg=obj=>{const v=Object.values(obj);return v.length?+(v.reduce((a,b)=>a+b,0)/v.length).toFixed(1):null;};
 
   // ── Délai avant 1ère cig après événement ──
   const eventDelays={wakeUp:[],lunch:[],dinner:[]};
   const eventLabels={wakeUp:{label:"Lever",emoji:"☀️"},lunch:{label:"Déjeuner",emoji:"🍽️"},dinner:{label:"Dîner",emoji:"🌙"}};
-  keyedDays.forEach(({d})=>{
+  filteredKeyed.forEach(({d})=>{
     Object.keys(eventDelays).forEach(evKey=>{
       const evTime=msm(d[evKey]);
       if(evTime===null)return;
-      const sorted=d.cigs.map(t=>msm(t)).filter(x=>x!==null&&x>evTime).sort((a,b)=>a-b);
+      const sorted=d._cigs.map(t=>msm(t)).filter(x=>x!==null&&x>evTime).sort((a,b)=>a-b);
       if(sorted.length>0) eventDelays[evKey].push(sorted[0]-evTime);
     });
   });
@@ -648,8 +773,8 @@ const StatsTab = ({data,settings,setSettings,expenses}) => {
     return allKeys.filter(k=>k>=s&&k<=e2);
   };
   const wkNkeys=getWeekKeys(0), wkN1keys=getWeekKeys(1);
-  const wkN=wkNkeys.reduce((s,k)=>s+(data[k]?.cigs?.length||0),0);
-  const wkN1=wkN1keys.reduce((s,k)=>s+(data[k]?.cigs?.length||0),0);
+  const wkN=wkNkeys.reduce((s,k)=>s+(filterCigs(data[k]||defDay()).length),0);
+  const wkN1=wkN1keys.reduce((s,k)=>s+(filterCigs(data[k]||defDay()).length),0);
   const wkDiff=wkN-wkN1;
   const wkPct=wkN1>0?Math.round(((wkN-wkN1)/wkN1)*100):null;
 
@@ -679,14 +804,13 @@ const StatsTab = ({data,settings,setSettings,expenses}) => {
       <Lbl dark={dark}>📈 Évolution sur la période</Lbl>
       <div style={{position:"relative",height:80,display:"flex",alignItems:"flex-end",gap:2}}>
         {chartKeys.map(({k,d},i)=>{
-          const h=Math.max((d.cigs.length/chartMax)*72,d.cigs.length>0?4:0);
-          const overGoal=d.cigs.length>d.goal;
+          const h=Math.max((d._cigs.length/chartMax)*72,d._cigs.length>0?4:0);
+          const overGoal=d._cigs.length>d.goal;
           const isToday=k===today();
           return <div key={k} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
             <div style={{width:"100%",height:h,background:overGoal?(dark?"rgba(248,113,113,0.7)":"#fca5a5"):(dark?"rgba(74,222,128,0.55)":"#86efac"),borderRadius:"3px 3px 0 0",border:isToday?"1.5px solid #fb7185":"none",boxSizing:"border-box"}}/>
           </div>;
         })}
-        {/* Objectif line */}
         {days[0]?.goal&&<div style={{position:"absolute",left:0,right:0,bottom:`${(days[0].goal/chartMax)*72}px`,borderTop:`1.5px dashed ${dark?"rgba(251,191,36,0.5)":"rgba(200,140,80,0.4)"}`,pointerEvents:"none"}}/>}
       </div>
       <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:dark?"#6a9a8a":"#bbb",marginTop:4}}>
@@ -848,7 +972,7 @@ const StatsTab = ({data,settings,setSettings,expenses}) => {
     </Card>
   ) : null;
 
-  const DEF_STATS_LAYOUT = ["summary","evolution","weekcompare","interval","eventdelay","dow","sleep","hours"];
+  const DEF_STATS_LAYOUT = ["summary","interval","eventdelay","hours","dow","weekcompare","evolution","sleep"];
   const fullCardMap = {summary:summaryCard, hours:hoursCard, evolution:evolutionCard, interval:intervalCard, dow:dowCard, sleep:sleepCorrelCard, weekcompare:weekCompareCard, eventdelay:eventDelayCard};
   const storedLayout = (settings.layouts||DEF_LAYOUTS).stats;
   // merge any new cards not yet in stored layout
@@ -859,7 +983,17 @@ const StatsTab = ({data,settings,setSettings,expenses}) => {
     <div>
       <PeriodBar showToday={true}/>
 
-      {Object.keys(typeStats).length>1&&<Card dark={dark}><Lbl dark={dark}>🛒 Par type de produit</Lbl><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{Object.entries(typeStats).sort((a,b)=>b[1]-a[1]).map(([tid,cnt])=>{const t=SMOKE_TYPES.find(x=>x.id===tid);return<div key={tid} style={{flex:1,minWidth:80,background:dark?"rgba(255,255,255,0.1)":"rgba(255,255,255,0.62)",borderRadius:14,padding:"12px 10px",textAlign:"center"}}><div style={{fontSize:28}}>{t?.emoji||"🚬"}</div><div style={{fontSize:20,fontWeight:900,color:tC}}>{cnt}</div><div style={{fontSize:11,color:stC}}>{t?.label||tid}</div></div>;})}</div></Card>}
+      {multiProduct&&<div style={{display:"flex",gap:6,justifyContent:"center",flexWrap:"wrap",marginBottom:10}}>
+        {[{id:"all",emoji:"🔀",label:"Tous"},...presentTypes].map(t=>(
+          <button key={t.id} onClick={()=>setFilterType(t.id)} style={{
+            display:"flex",alignItems:"center",gap:5,padding:"5px 14px",borderRadius:99,fontSize:12,fontWeight:600,cursor:"pointer",
+            background:effectiveType===t.id?"rgba(200,130,110,0.4)":"rgba(255,255,255,0.55)",
+            border:effectiveType===t.id?"2px solid rgba(200,130,110,0.6)":"2px solid transparent",
+            color:effectiveType===t.id?"#7a3a28":"#5a3a30",
+          }}><span>{t.emoji}</span><span>{t.label}</span></button>
+        ))}
+      </div>}
+
       {mergedLayout.map(id=>fullCardMap[id]||null)}
     </div>
   );
@@ -944,10 +1078,28 @@ const ProgressTab = ({data,settings,setSettings,expenses}) => {
 const AnalyseTab = ({data,settings,setSettings,expenses}) => {
   const dark = settings.darkMode||false;
   const {keys,PeriodBar} = usePeriodFilter(data);
-  const days = keys.map(k=>data[k]).filter(Boolean);
+  const allDays = keys.map(k=>data[k]).filter(Boolean);
+
+  // ══ Filtre produit — basé sur les données réelles ══
+  const presentTypesSetA = new Set();
+  allDays.forEach(d=>d.cigs.forEach((_,i)=>presentTypesSetA.add((d.cigTypes||{})[i]||"cigarette")));
+  const presentTypesA = SMOKE_TYPES.filter(t=>presentTypesSetA.has(t.id));
+  const multiProduct = presentTypesA.length > 1;
+  const [filterType, setFilterType] = useState("all");
+  const tC=dark?"#f0f4f2":"#5a3a30", stC=dark?"#90b8a8":"#a07868";
+
+  const filterCigsA = (d) => {
+    if(filterType==="all") return {cigs:d.cigs, factors:d.cigFactors||{}, cravings:d.cigCravings||{}};
+    const indices = d.cigs.reduce((acc,_,i)=>{if(((d.cigTypes||{})[i]||"cigarette")===filterType)acc.push(i);return acc;},[]);
+    const filtered = indices.map(i=>d.cigs[i]);
+    const factors = Object.fromEntries(indices.map((oi,ni)=>[(d.cigFactors||{})[oi]!==undefined?ni:null,(d.cigFactors||{})[oi]]).filter(([k])=>k!==null));
+    const cravings = Object.fromEntries(indices.map((oi,ni)=>[(d.cigCravings||{})[oi]!==undefined?ni:null,(d.cigCravings||{})[oi]]).filter(([k])=>k!==null));
+    return {cigs:filtered, factors, cravings};
+  };
+  const days = allDays.map(d=>({...d,...filterCigsA(d)}));
 
   const factorCount={};
-  days.forEach(d=>Object.values(d.cigFactors||{}).forEach(f=>{
+  days.forEach(d=>Object.values(d.factors||d.cigFactors||{}).forEach(f=>{
     const ids=Array.isArray(f)?f:(f?[f]:[]);
     ids.forEach(id=>{if(id)factorCount[id]=(factorCount[id]||0)+1;});
   }));
@@ -955,25 +1107,24 @@ const AnalyseTab = ({data,settings,setSettings,expenses}) => {
   const factorStats=FACTORS.filter(f=>factorCount[f.id]).map(f=>({...f,count:factorCount[f.id]||0})).sort((a,b)=>b.count-a.count);
 
   const allCravings=[];
-  days.forEach(d=>Object.values(d.cigCravings||{}).forEach(v=>{if(v)allCravings.push(v);}));
+  days.forEach(d=>Object.values(d.cravings||d.cigCravings||{}).forEach(v=>{if(v)allCravings.push(v);}));
   const avgCraving=allCravings.length?(allCravings.reduce((a,b)=>a+b,0)/allCravings.length).toFixed(1):null;
   const cravingDist=[1,2,3,4,5].map(sc=>({sc,count:allCravings.filter(c=>c===sc).length}));
   const maxCraving=Math.max(...cravingDist.map(c=>c.count),1);
   const cravingColors={1:"#86efac",2:"#fcd34d",3:"#fb923c",4:"#f87171",5:"#e11d48"};
 
   const typeStats={};
-  days.forEach(d=>{const types=d.cigTypes||{};d.cigs.forEach((_,i)=>{const t=types[i]||"cigarette";typeStats[t]=(typeStats[t]||0)+1;});});
-  const totalCig=days.reduce((s,d)=>s+d.cigs.length,0);
+  allDays.forEach(d=>{const types=d.cigTypes||{};d.cigs.forEach((_,i)=>{const t=types[i]||"cigarette";typeStats[t]=(typeStats[t]||0)+1;});});
+  const totalCig=allDays.reduce((s,d)=>s+d.cigs.length,0);
 
   const cyclePhaseStats={};
   if(settings.cycleTracking&&settings.cycleStartDate){
-    keys.forEach(k=>{const ph=getCyclePhase(settings,k);if(!ph)return;const cnt=data[k]?.cigs?.length||0;if(!cyclePhaseStats[ph.label])cyclePhaseStats[ph.label]={total:0,days:0,emoji:ph.emoji,color:ph.color};cyclePhaseStats[ph.label].total+=cnt;cyclePhaseStats[ph.label].days+=1;});
+    keys.forEach(k=>{const ph=getCyclePhase(settings,k);if(!ph)return;const d=data[k];const cnt=d?filterCigsA(d).cigs.length:0;if(!cyclePhaseStats[ph.label])cyclePhaseStats[ph.label]={total:0,days:0,emoji:ph.emoji,color:ph.color};cyclePhaseStats[ph.label].total+=cnt;cyclePhaseStats[ph.label].days+=1;});
   }
 
   const allKeys2=Object.keys(data).sort();
   const exportCSV=()=>{const rows=[["Date","Conso.","Objectif","Types","Facteurs","Envie moy","Note"]];allKeys2.forEach(k=>{const d=data[k];if(d){const factors=Object.values(d.cigFactors||{}).flatMap(f=>Array.isArray(f)?f:(f?[f]:[])).map(id=>factorById[id]?.label).filter(Boolean).join("|");const types=Object.values(d.cigTypes||{}).join("|");const cravings=Object.values(d.cigCravings||{});const avgCr=cravings.length?(cravings.reduce((a,b)=>a+b,0)/cravings.length).toFixed(1):"";rows.push([k,d.cigs.length,d.goal,types,factors,avgCr,d.note||""]);} });const csv="\uFEFF"+rows.map(r=>r.join(";")).join("\n");const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));a.download="smoketrack_export.csv";a.click();};
 
-  const tC=dark?"#f0f4f2":"#5a3a30", stC=dark?"#90b8a8":"#a07868";
   const layout = (settings.layouts||DEF_LAYOUTS).analyse || DEF_LAYOUTS.analyse;
   const factorsCard = settings.showFactors&&factorStats.length>0 ? (
     <Card key="factors" dark={dark}><Lbl dark={dark}>🔍 Facteurs déclenchants</Lbl>
@@ -995,8 +1146,18 @@ const AnalyseTab = ({data,settings,setSettings,expenses}) => {
     <div>
       <PeriodBar showToday={false}/>
 
+      {multiProduct&&<div style={{display:"flex",gap:6,justifyContent:"center",flexWrap:"wrap",marginBottom:10}}>
+        {[{id:"all",emoji:"🔀",label:"Tous"},...presentTypesA].map(t=>(
+          <button key={t.id} onClick={()=>setFilterType(t.id)} style={{
+            display:"flex",alignItems:"center",gap:5,padding:"5px 14px",borderRadius:99,fontSize:12,fontWeight:600,cursor:"pointer",
+            background:filterType===t.id?"rgba(200,130,110,0.4)":"rgba(255,255,255,0.55)",
+            border:filterType===t.id?"2px solid rgba(200,130,110,0.6)":"2px solid transparent",
+            color:filterType===t.id?"#7a3a28":"#5a3a30",
+          }}><span>{t.emoji}</span><span>{t.label}</span></button>
+        ))}
+      </div>}
 
-      {Object.keys(typeStats).length>0&&<Card dark={dark}><Lbl dark={dark}>🛒 Répartition par produit</Lbl>
+      {Object.keys(typeStats).length>1&&<Card dark={dark}><Lbl dark={dark}>🛒 Répartition par produit</Lbl>
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
           {Object.entries(typeStats).sort((a,b)=>b[1]-a[1]).map(([tid,cnt])=>{const t=SMOKE_TYPES.find(x=>x.id===tid);const pct=totalCig>0?Math.round((cnt/totalCig)*100):0;return<div key={tid} style={{flex:1,minWidth:80,background:dark?"rgba(255,255,255,0.1)":"rgba(255,255,255,0.62)",borderRadius:14,padding:"12px 10px",textAlign:"center"}}><div style={{fontSize:28}}>{t?.emoji||"🚬"}</div><div style={{fontSize:20,fontWeight:900,color:tC}}>{cnt}</div><div style={{fontSize:11,color:stC}}>{t?.label||tid}</div><div style={{fontSize:10,color:dark?"#6a9a8a":"#b0a090"}}>{pct}%</div></div>;})}
         </div>
@@ -1236,6 +1397,7 @@ const SettingsTab = ({data,setData,settings,setSettings,expenses,setExpenses}) =
         <Toggle val={settings.showFactors!==false} onChange={v=>upd({showFactors:v})} label="🔍 Facteurs déclenchants" desc="Dans la saisie et les analyses" dark={dark}/>
         <Toggle val={settings.showCravings!==false} onChange={v=>upd({showCravings:v})} label="🌡️ Note d'envie" desc="Niveau d'envie lors de la saisie" dark={dark}/>
         <Toggle val={settings.showEvents!==false} onChange={v=>upd({showEvents:v})} label="📅 Événements du jour" desc="Lever, repas, dîner, coucher" dark={dark}/>
+        <Toggle val={settings.showMoney!==false} onChange={v=>upd({showMoney:v})} label="💰 Argent & dépenses" desc="Prix du jour, onglet Portefeuille, € dans le calendrier" dark={dark}/>
       </Card>
 
       {/* PRODUITS */}
@@ -1307,14 +1469,14 @@ export default function App() {
   const day = data[today()]||defDay();
   // dark = manual ON always dark / auto mode = dark only at night / manual OFF = never dark
   const dark = settings.darkMode ? true : (settings.autoDark !== false ? isNightTime(data) : false);
-  const bg   = getBg(day.cigs.length,day.goal,dark);
+  const bg   = getBg(day.cigs.length, settings.defaultGoal||10, dark);
   const tabs = [
     {id:"home",icon:"home",label:"Accueil"},
     {id:"calendar",icon:"calendar",label:"Calendrier"},
     {id:"stats",icon:"chart",label:"Stats"},
     {id:"progres",icon:"trophy",label:"Progrès"},
     {id:"analyse",icon:"brain",label:"Analyse"},
-    {id:"wallet",icon:"wallet",label:"Portefeuille"},
+    ...(settings.showMoney!==false?[{id:"wallet",icon:"wallet",label:"Portefeuille"}]:[]),
     {id:"settings",icon:"settings",label:"Réglages"},
   ];
   const activeClr=dark?"#4ade80":"#d05a40", inactClr=dark?"#3a6055":"#b09080";
