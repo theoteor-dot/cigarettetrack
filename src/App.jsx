@@ -335,87 +335,9 @@ const usePeriodFilter = (data) => {
 };
 
 // ══ DRAG SORTER ═══════════════════════════════════════════════════════════════
-const CARD_LABELS = {
-  counter:"🏠 Compteur", timeline:"⏱ Timeline", cigs:"🚬 Historique",
-  summary:"📊 Résumé", cost:"💸 Coût", hours:"🕐 Horaire",
-  evolution:"📈 Évolution", interval:"⏱ Intervalles", dow:"📅 Jour de la semaine",
-  sleep:"😴 Éveil & conso", weekcompare:"📆 Semaine N vs N-1", savings:"💰 Argent économisé",
-  streak:"🔥 Série", heatmap:"🗓 Heatmap", badges:"🏅 Badges",
-  factors:"🔍 Facteurs", cravings:"🌡️ Envies",
-};
 
-const DragSorter = ({tabId, settings, setSettings, dark, allIds}) => {
-  const [open, setOpen] = useState(false);
-  const layouts = settings.layouts || DEF_LAYOUTS;
-  const storedOrder = layouts[tabId] || DEF_LAYOUTS[tabId] || [];
-  // merge any new IDs not yet in stored order
-  const extraIds = allIds ? allIds.filter(id=>!storedOrder.includes(id)) : [];
-  const order = [...storedOrder, ...extraIds];
-  const [dragging, setDragging] = useState(null);
-  const [overIdx, setOverIdx]   = useState(null);
 
-  const reorder = (fromIdx, toIdx) => {
-    if(fromIdx===toIdx) return;
-    const next = [...order];
-    const [moved] = next.splice(fromIdx,1);
-    next.splice(toIdx,0,moved);
-    const newLayouts = {...layouts, [tabId]: next};
-    const ns = {...settings, layouts: newLayouts};
-    setSettings(ns); saveSettings(ns);
-  };
 
-  const tc   = dark?"#f0f4f2":"#5a3a30";
-  const subC = dark?"#90b8a8":"#a07868";
-  const handleBg = dark?"rgba(255,255,255,0.12)":"rgba(200,180,170,0.25)";
-
-  return (
-    <div style={{marginBottom:10}}>
-      <button onClick={()=>setOpen(o=>!o)}
-        style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",
-          background:open?(dark?"rgba(255,255,255,0.1)":"rgba(255,255,255,0.7)"):(dark?"rgba(255,255,255,0.06)":"rgba(255,255,255,0.45)"),
-          border:dark?"1px solid rgba(255,255,255,0.12)":"1px solid rgba(200,180,170,0.3)",
-          borderRadius:14,padding:"9px 14px",cursor:"pointer",backdropFilter:"blur(8px)"}}>
-        <span style={{fontSize:12,fontWeight:700,color:subC,display:"flex",alignItems:"center",gap:6}}>
-          <span style={{fontSize:15}}>⠿</span> Personnaliser l'ordre
-        </span>
-        <span style={{fontSize:13,color:subC}}>{open?"▲":"▼"}</span>
-      </button>
-
-      {open&&(
-        <div style={{background:dark?"rgba(255,255,255,0.06)":"rgba(255,255,255,0.55)",
-          border:dark?"1px solid rgba(255,255,255,0.1)":"1px solid rgba(200,180,170,0.25)",
-          borderRadius:"0 0 14px 14px",padding:"10px 12px",marginTop:-4,backdropFilter:"blur(8px)"}}>
-          <div style={{fontSize:11,color:subC,marginBottom:8}}>Glisse pour réorganiser les blocs</div>
-          {order.map((id,idx)=>(
-            <div key={id}
-              draggable
-              onDragStart={()=>setDragging(idx)}
-              onDragOver={e=>{e.preventDefault();setOverIdx(idx);}}
-              onDrop={()=>{reorder(dragging,idx);setDragging(null);setOverIdx(null);}}
-              onDragEnd={()=>{setDragging(null);setOverIdx(null);}}
-              style={{
-                display:"flex",alignItems:"center",gap:10,
-                padding:"9px 12px",marginBottom:6,borderRadius:12,
-                background:dragging===idx?"rgba(251,113,133,0.15)":overIdx===idx?"rgba(134,239,172,0.15)":dark?"rgba(255,255,255,0.08)":"rgba(255,255,255,0.7)",
-                border:overIdx===idx?"1.5px dashed #4ade80":`1.5px solid ${dark?"rgba(255,255,255,0.1)":"rgba(200,180,170,0.25)"}`,
-                cursor:"grab",transition:"background 0.15s",
-                opacity:dragging===idx?0.5:1,
-              }}>
-              <span style={{fontSize:18,color:dark?"rgba(255,255,255,0.3)":"rgba(180,150,140,0.6)",userSelect:"none"}}>⠿</span>
-              <span style={{fontSize:13,fontWeight:600,color:tc,flex:1}}>{CARD_LABELS[id]||id}</span>
-              <div style={{display:"flex",gap:4}}>
-                <button onClick={()=>reorder(idx,Math.max(0,idx-1))} disabled={idx===0}
-                  style={{background:handleBg,border:"none",borderRadius:8,padding:"3px 8px",cursor:idx===0?"default":"pointer",opacity:idx===0?0.3:1,fontSize:14,color:tc}}>↑</button>
-                <button onClick={()=>reorder(idx,Math.min(order.length-1,idx+1))} disabled={idx===order.length-1}
-                  style={{background:handleBg,border:"none",borderRadius:8,padding:"3px 8px",cursor:idx===order.length-1?"default":"pointer",opacity:idx===order.length-1?0.3:1,fontSize:14,color:tc}}>↓</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
 
 const BADGES = [
   {id:"first",   cat:"🚀 Premiers pas", emoji:"👣",label:"Premier pas",     check:d=>Object.keys(d).length>=1},
@@ -503,8 +425,8 @@ const HomeTab = ({data,setData,settings,setSettings,expenses}) => {
       {eventModal&&<EventModal label={eventModal.label} emoji={eventModal.emoji} currentTime={day[eventModal.key]} onConfirm={t=>{upd({[eventModal.key]:t});setEventModal(null);}} onCancel={()=>setEventModal(null)}/>}
       {newBadge&&<div style={{position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",zIndex:200,background:"linear-gradient(135deg,rgba(253,230,138,0.97),rgba(252,200,100,0.97))",borderRadius:16,padding:"12px 20px",display:"flex",alignItems:"center",gap:12,maxWidth:340,width:"90%",border:"1.5px solid rgba(252,200,100,0.6)"}}><span style={{fontSize:32}}>{newBadge.emoji}</span><div><div style={{fontSize:11,fontWeight:700,color:"#7a5a20",textTransform:"uppercase"}}>Badge débloqué !</div><div style={{fontSize:14,fontWeight:800,color:"#5a3a10"}}>{newBadge.label}</div></div></div>}
       {phase&&<div style={{background:phase.bg,borderRadius:16,padding:"10px 16px",marginBottom:10,display:"flex",alignItems:"center",gap:10,border:`1.5px solid ${phase.color}50`}}><span style={{fontSize:22}}>{phase.emoji}</span><div><div style={{fontSize:11,fontWeight:700,color:phase.color,textTransform:"uppercase"}}>Cycle utérin</div><div style={{fontSize:13,fontWeight:600,color:tC}}>{phase.label}</div></div></div>}
-      <DragSorter tabId="home" settings={settings} setSettings={setSettings} dark={dark}/>
-      {todayExpTotal>0&&<Card dark={dark} style={{padding:"12px 16px"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:20}}>💸</span><div><div style={{fontSize:11,color:stC,fontWeight:700,textTransform:"uppercase"}}>Dépenses du jour</div><div style={{fontSize:12,color:tC}}>{todayExp.map(e=>`${EXPENSE_CATS.find(c=>c.id===e.cat)?.emoji||""} ${e.amount.toFixed(2)}${settings.currency}`).join(" · ")}</div></div></div><div style={{fontSize:20,fontWeight:900,color:dark?"#f0a0a0":"#c05040"}}>{todayExpTotal.toFixed(2)}{settings.currency}</div></div></Card>}
+
+
       {layout.map(id=>cardMap[id]||null)}
     </div>
   );
@@ -551,7 +473,7 @@ const CalendarTab = ({data,setData,settings,expenses}) => {
               {cnt>0&&<div style={{fontSize:16,fontWeight:900,color:dark?"#f0d0c8":"#5a3a30"}}>{cnt}</div>}
               <div style={{display:"flex",gap:2,flexWrap:"wrap",justifyContent:"center"}}>
                 {d?.note&&<span style={{fontSize:7}}>📝</span>}
-                {hasExp&&<span style={{fontSize:7}}>💸</span>}
+                {hasExp&&<span style={{fontSize:8,fontWeight:800,color:dark?"#e0c060":"#9a7020"}}>€</span>}
                 {ph&&<span style={{fontSize:7}}>{ph.emoji}</span>}
               </div>
             </div>;
@@ -880,8 +802,8 @@ const StatsTab = ({data,settings,setSettings,expenses}) => {
     </Card>
   ) : null;
 
-  const DEF_STATS_LAYOUT = ["summary","evolution","weekcompare","interval","eventdelay","dow","sleep","savings","cost","hours"];
-  const fullCardMap = {summary:summaryCard, cost:costCard, hours:hoursCard, evolution:evolutionCard, interval:intervalCard, dow:dowCard, sleep:sleepCorrelCard, weekcompare:weekCompareCard, savings:savingsCard, eventdelay:eventDelayCard};
+  const DEF_STATS_LAYOUT = ["summary","evolution","weekcompare","interval","eventdelay","dow","sleep","hours"];
+  const fullCardMap = {summary:summaryCard, hours:hoursCard, evolution:evolutionCard, interval:intervalCard, dow:dowCard, sleep:sleepCorrelCard, weekcompare:weekCompareCard, eventdelay:eventDelayCard};
   const storedLayout = (settings.layouts||DEF_LAYOUTS).stats;
   // merge any new cards not yet in stored layout
   const newIds = DEF_STATS_LAYOUT.filter(id=>!storedLayout?.includes(id));
@@ -890,7 +812,7 @@ const StatsTab = ({data,settings,setSettings,expenses}) => {
   return (
     <div>
       <PeriodBar showToday={true}/>
-      <DragSorter tabId="stats" settings={settings} setSettings={setSettings} dark={dark} allIds={DEF_STATS_LAYOUT}/>
+
       {Object.keys(typeStats).length>1&&<Card dark={dark}><Lbl dark={dark}>🛒 Par type de produit</Lbl><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{Object.entries(typeStats).sort((a,b)=>b[1]-a[1]).map(([tid,cnt])=>{const t=SMOKE_TYPES.find(x=>x.id===tid);return<div key={tid} style={{flex:1,minWidth:80,background:dark?"rgba(255,255,255,0.1)":"rgba(255,255,255,0.62)",borderRadius:14,padding:"12px 10px",textAlign:"center"}}><div style={{fontSize:28}}>{t?.emoji||"🚬"}</div><div style={{fontSize:20,fontWeight:900,color:tC}}>{cnt}</div><div style={{fontSize:11,color:stC}}>{t?.label||tid}</div></div>;})}</div></Card>}
       {mergedLayout.map(id=>fullCardMap[id]||null)}
     </div>
@@ -948,7 +870,7 @@ const ProgressTab = ({data,settings,setSettings}) => {
 
   return (
     <div>
-      <DragSorter tabId="progres" settings={settings} setSettings={setSettings} dark={dark}/>
+
       {layout.map(id=>cardMap[id]||null)}
     </div>
   );
@@ -1005,7 +927,7 @@ const AnalyseTab = ({data,settings,setSettings,expenses}) => {
   return (
     <div>
       <PeriodBar showToday={false}/>
-      <DragSorter tabId="analyse" settings={settings} setSettings={setSettings} dark={dark}/>
+
 
       {Object.keys(typeStats).length>0&&<Card dark={dark}><Lbl dark={dark}>🛒 Répartition par produit</Lbl>
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
@@ -1081,7 +1003,145 @@ const ExpensesPanel = ({expenses,setExpenses,settings,dark}) => {
   );
 };
 
-// ══ SETTINGS ══════════════════════════════════════════════════════════════════
+// ══ WALLET ════════════════════════════════════════════════════════════════════
+const WalletTab = ({data, settings, setSettings, expenses, setExpenses}) => {
+  const dark = settings.darkMode||false;
+  const tC=dark?"#f0f4f2":"#5a3a30", stC=dark?"#90b8a8":"#a07868";
+  const cpCig=(settings.pricePerPack||12)/(settings.cigsPerPack||20);
+  const allKeys=Object.keys(data).sort();
+  const {keys,PeriodBar}=usePeriodFilter(data);
+  const days=keys.map(k=>data[k]).filter(Boolean);
+  const total=days.reduce((s,d)=>s+d.cigs.length,0);
+  const daysCount=Math.max(days.length,1);
+
+  // Coût estimé période
+  const estCost=(total*cpCig).toFixed(2);
+
+  // Dépenses réelles période
+  const ps=keys[0]||"", pe=keys[keys.length-1]||"";
+  const realExp=expenses.filter(e=>e.date>=ps&&e.date<=pe);
+  const realExpTotal=realExp.reduce((s,e)=>s+e.amount,0);
+
+  // Argent économisé vs habitude
+  const habitCost=(settings.usualCigs||20)*cpCig;
+  const savedPerDay=Math.max(0,habitCost-(total/daysCount*cpCig));
+  const savedTotal=(savedPerDay*daysCount).toFixed(2);
+  const savedMonth=(savedPerDay*30).toFixed(2);
+  const savedYear=(savedPerDay*365).toFixed(2);
+
+  // Totaux dépenses
+  const thisMo=new Date().toISOString().slice(0,7);
+  const totalMo=expenses.filter(e=>e.date.startsWith(thisMo)).reduce((s,e)=>s+e.amount,0);
+  const totalAll=expenses.reduce((s,e)=>s+e.amount,0);
+
+  // Ajout dépense
+  const [cat,setCat]=useState("cigarette");
+  const [amt,setAmt]=useState("");
+  const [date,setDate]=useState(today());
+  const [note,setNote]=useState("");
+  const addExp=()=>{if(!amt||parseFloat(amt)<=0)return;const n=[...expenses,{id:Date.now(),cat,amount:parseFloat(amt),date,note}];setExpenses(n);saveExpenses(n);setAmt("");setNote("");};
+  const delExp=id=>{const n=expenses.filter(e=>e.id!==id);setExpenses(n);saveExpenses(n);};
+  const iS={border:`1.5px solid ${dark?"rgba(255,255,255,0.18)":"rgba(200,180,170,0.4)"}`,background:dark?"rgba(255,255,255,0.08)":"rgba(255,255,255,0.85)",borderRadius:10,padding:"8px 10px",fontSize:14,color:tC,outline:"none"};
+
+  return (
+    <div>
+      <PeriodBar showToday={false}/>
+
+      {/* Résumé coûts */}
+      <Card dark={dark}>
+        <Lbl dark={dark}>💸 Coût de la période</Lbl>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+          <div style={{background:dark?"rgba(252,165,165,0.12)":"rgba(252,165,165,0.2)",borderRadius:12,padding:12,textAlign:"center"}}>
+            <div style={{fontSize:11,color:stC,marginBottom:4}}>Estimé</div>
+            <div style={{fontSize:24,fontWeight:900,color:dark?"#f0a0a0":"#c05040"}}>{estCost}{settings.currency||"€"}</div>
+            <div style={{fontSize:10,color:stC}}>{total} cig × {cpCig.toFixed(2)}{settings.currency||"€"}</div>
+          </div>
+          <div style={{background:dark?"rgba(253,230,138,0.1)":"rgba(253,230,138,0.25)",borderRadius:12,padding:12,textAlign:"center"}}>
+            <div style={{fontSize:11,color:stC,marginBottom:4}}>Réel (dépenses)</div>
+            <div style={{fontSize:24,fontWeight:900,color:dark?"#e0c060":"#7a6030"}}>{realExpTotal>0?`${realExpTotal.toFixed(2)}${settings.currency||"€"}`:"–"}</div>
+            {realExp.length>0&&<div style={{fontSize:10,color:stC}}>{realExp.length} achat{realExp.length>1?"s":""}</div>}
+          </div>
+        </div>
+        {realExp.length>0&&<div style={{marginTop:12,display:"flex",flexDirection:"column",gap:4}}>
+          {EXPENSE_CATS.map(cat=>{const tot=realExp.filter(e=>e.cat===cat.id).reduce((s,e)=>s+e.amount,0);return tot>0&&<div key={cat.id} style={{display:"flex",justifyContent:"space-between",fontSize:13,color:dark?"#c0c8c4":"#7a6a60",padding:"4px 0",borderBottom:`1px solid ${dark?"rgba(255,255,255,0.07)":"rgba(200,180,170,0.15)"}`}}><span>{cat.emoji} {cat.label}</span><span style={{fontWeight:700}}>{tot.toFixed(2)}{settings.currency||"€"}</span></div>;})}
+        </div>}
+      </Card>
+
+      {/* Argent économisé */}
+      {parseFloat(savedTotal)>0&&<Card dark={dark}>
+        <Lbl dark={dark}>💰 Argent économisé vs ton habitude</Lbl>
+        <div style={{textAlign:"center",padding:"10px 0 14px"}}>
+          <div style={{fontSize:11,color:stC,marginBottom:4}}>Sur cette période</div>
+          <div style={{fontSize:44,fontWeight:900,color:dark?"#4ade80":"#2a7a40",lineHeight:1}}>{savedTotal}{settings.currency||"€"}</div>
+          <div style={{fontSize:11,color:stC,marginTop:4}}>vs {settings.usualCigs||20} cig/j habituels</div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+          {[["/ mois",savedMonth,"rgba(134,239,172,0.2)","#2a6a40"],["/ an",savedYear,"rgba(74,222,128,0.15)","#1a5a30"]].map(([l,v,bg,c])=>(
+            <div key={l} style={{background:dark?"rgba(74,222,128,0.1)":bg,borderRadius:12,padding:10,textAlign:"center"}}>
+              <div style={{fontSize:18,fontWeight:900,color:dark?"#4ade80":c}}>{v}{settings.currency||"€"}</div>
+              <div style={{fontSize:10,color:stC}}>{l} à ce rythme</div>
+            </div>
+          ))}
+        </div>
+      </Card>}
+
+      {/* Résumé dépenses */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+        <div style={{background:dark?"rgba(252,165,165,0.13)":"rgba(252,165,165,0.2)",borderRadius:14,padding:14,textAlign:"center"}}>
+          <div style={{fontSize:22,fontWeight:900,color:dark?"#f0a0a0":"#c05040"}}>{totalMo.toFixed(2)}{settings.currency||"€"}</div>
+          <div style={{fontSize:11,color:stC}}>Ce mois-ci</div>
+        </div>
+        <div style={{background:dark?"rgba(253,230,138,0.1)":"rgba(253,230,138,0.25)",borderRadius:14,padding:14,textAlign:"center"}}>
+          <div style={{fontSize:22,fontWeight:900,color:dark?"#e0c060":"#7a6030"}}>{totalAll.toFixed(2)}{settings.currency||"€"}</div>
+          <div style={{fontSize:11,color:stC}}>Total</div>
+        </div>
+      </div>
+
+      {/* Ajouter dépense */}
+      <Card dark={dark}>
+        <Lbl dark={dark}>➕ NOUVELLE DÉPENSE</Lbl>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8,marginBottom:12}}>
+          {EXPENSE_CATS.map(c=><button key={c.id} onClick={()=>setCat(c.id)} style={{padding:"10px 8px",borderRadius:12,border:cat===c.id?"2px solid #fb7185":"2px solid rgba(200,180,170,0.25)",background:cat===c.id?(dark?"rgba(252,165,165,0.15)":"rgba(252,165,165,0.2)"):(dark?"rgba(255,255,255,0.05)":"rgba(255,255,255,0.7)"),cursor:"pointer",display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:20}}>{c.emoji}</span><span style={{fontSize:11,fontWeight:600,color:cat===c.id?"#c05040":(dark?"#c0c8c4":"#a07868")}}>{c.label}</span></button>)}
+        </div>
+        <div style={{display:"flex",gap:8,marginBottom:8}}>
+          <div style={{flex:1}}>
+            <div style={{fontSize:11,color:stC,marginBottom:4}}>Montant</div>
+            <div style={{display:"flex",alignItems:"center",gap:4}}><input type="number" value={amt} onChange={e=>setAmt(e.target.value)} placeholder="0.00" min="0" step="0.01" style={{...iS,width:"100%",fontWeight:700}}/><span style={{fontSize:15,fontWeight:700,color:stC,flexShrink:0}}>{settings.currency||"€"}</span></div>
+          </div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:11,color:stC,marginBottom:4}}>Date</div>
+            <input type="date" value={date} max={today()} onChange={e=>setDate(e.target.value)} style={{...iS,width:"100%"}}/>
+          </div>
+        </div>
+        <input value={note} onChange={e=>setNote(e.target.value)} placeholder="Note (optionnel)…" style={{...iS,width:"100%",marginBottom:12,boxSizing:"border-box"}}/>
+        <button onClick={addExp} disabled={!amt||parseFloat(amt)<=0} style={{width:"100%",background:amt&&parseFloat(amt)>0?"linear-gradient(135deg,#fca5a5,#fb7185)":"rgba(200,180,170,0.3)",border:"none",borderRadius:12,padding:12,fontSize:14,fontWeight:700,color:amt&&parseFloat(amt)>0?"white":"#c0b0a0",cursor:amt&&parseFloat(amt)>0?"pointer":"default"}}>💸 Enregistrer</button>
+      </Card>
+
+      {/* Historique */}
+      {expenses.length>0&&<Card dark={dark}>
+        <Lbl dark={dark}>📋 HISTORIQUE</Lbl>
+        <div style={{display:"flex",flexDirection:"column",gap:4}}>
+          {[...expenses].sort((a,b)=>b.date.localeCompare(a.date)).map(e=>{const c=EXPENSE_CATS.find(x=>x.id===e.cat);return<div key={e.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:`1px solid ${dark?"rgba(255,255,255,0.07)":"rgba(200,180,170,0.15)"}`}}>
+            <span style={{fontSize:22}}>{c?.emoji||"💸"}</span>
+            <div style={{flex:1}}>
+              <div style={{fontSize:13,fontWeight:600,color:tC}}>{c?.label||e.cat}</div>
+              <div style={{fontSize:11,color:stC}}>{new Date(e.date+"T00:00:00").toLocaleDateString("fr-FR",{day:"numeric",month:"long"})}{e.note?` · ${e.note}`:""}</div>
+            </div>
+            <div style={{fontWeight:800,fontSize:15,color:dark?"#f0a0a0":"#c05040"}}>{e.amount.toFixed(2)}{settings.currency||"€"}</div>
+            <button onClick={()=>delExp(e.id)} style={{background:"none",border:"none",cursor:"pointer",padding:0,opacity:0.7}}><Icon name="trash" size={14} color="#f87171"/></button>
+          </div>;})}
+        </div>
+      </Card>}
+
+      {/* Export CSV */}
+      <button onClick={()=>{const rows=[["Date","Catégorie","Montant","Note"]];[...expenses].sort((a,b)=>a.date.localeCompare(b.date)).forEach(e=>{const c=EXPENSE_CATS.find(x=>x.id===e.cat);rows.push([e.date,c?.label||e.cat,e.amount.toFixed(2),e.note||""]);});const csv="\uFEFF"+rows.map(r=>r.join(";")).join("\n");const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));a.download="depenses_smoketrack.csv";a.click();}} style={{width:"100%",background:dark?"rgba(255,255,255,0.1)":"rgba(255,255,255,0.6)",border:`1.5px solid ${dark?"rgba(255,255,255,0.2)":"rgba(200,180,170,0.3)"}`,borderRadius:14,padding:12,fontSize:14,fontWeight:700,color:tC,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:14}}>
+        <Icon name="download" size={16} color={tC}/> Exporter CSV
+      </button>
+    </div>
+  );
+};
+
+
 const SettingsTab = ({data,setData,settings,setSettings,expenses,setExpenses}) => {
   const dark = settings.darkMode||false;
   const [confirmReset,setConfirmReset] = useState(false);
@@ -1125,9 +1185,6 @@ const SettingsTab = ({data,setData,settings,setSettings,expenses,setExpenses}) =
         <Row icon="target" label="Cigs / paquet"><StableInput type="number" value={settings.cigsPerPack} onCommit={v=>upd({cigsPerPack:parseInt(v)||20})} style={{...iS,width:70,textAlign:"right"}}/></Row>
         <Row icon="savings" label="Habitude (cig/j)"><StableInput type="number" value={settings.usualCigs} onCommit={v=>upd({usualCigs:parseInt(v)||20})} style={{...iS,width:70,textAlign:"right"}}/></Row>
       </Card>
-
-      {/* DÉPENSES */}
-      <ExpensesPanel expenses={expenses} setExpenses={setExpenses} settings={settings} dark={dark}/>
 
       {/* CYCLE */}
       <Card dark={dark}><Lbl dark={dark}>🌙 CYCLE UTÉRIN</Lbl>
@@ -1190,6 +1247,7 @@ export default function App() {
     {id:"stats",icon:"chart",label:"Stats"},
     {id:"progres",icon:"trophy",label:"Progrès"},
     {id:"analyse",icon:"brain",label:"Analyse"},
+    {id:"wallet",icon:"wallet",label:"Portefeuille"},
     {id:"settings",icon:"settings",label:"Réglages"},
   ];
   const activeClr=dark?"#4ade80":"#d05a40", inactClr=dark?"#3a6055":"#b09080";
@@ -1207,6 +1265,7 @@ export default function App() {
         {tab==="stats"    &&<StatsTab    data={data} settings={settings} setSettings={setSettings} expenses={expenses}/>}
         {tab==="progres"  &&<ProgressTab data={data} settings={settings} setSettings={setSettings}/>}
         {tab==="analyse"  &&<AnalyseTab  data={data} settings={settings} setSettings={setSettings} expenses={expenses}/>}
+        {tab==="wallet"   &&<WalletTab   data={data} settings={settings} setSettings={setSettings} expenses={expenses} setExpenses={setExpenses}/>}
         {tab==="settings" &&<SettingsTab data={data} setData={setData} settings={settings} setSettings={setSettings} expenses={expenses} setExpenses={setExpenses}/>}
       </div>
       <div style={{position:"fixed",bottom:0,left:0,right:0,background:dark?"rgba(8,13,18,0.97)":"rgba(255,255,255,0.9)",backdropFilter:"blur(20px)",borderTop:dark?"1px solid rgba(255,255,255,0.1)":"1px solid rgba(200,180,170,0.3)",display:"flex",justifyContent:"space-around",padding:"6px 0 max(8px,env(safe-area-inset-bottom))"}}>
