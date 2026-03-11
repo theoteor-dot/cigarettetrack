@@ -10,7 +10,19 @@ const SK    = "smk_tracker_v7";
 const SET_K = "smk_settings_v7";
 const EXP_K = "smk_expenses_v7";
 const loadData     = () => { try{ return JSON.parse(localStorage.getItem(SK))||{}; }catch{return{};} };
-const loadSettings = () => { try{ const s=JSON.parse(localStorage.getItem(SET_K)); return s?{...defSettings(),...s}:defSettings(); }catch{return defSettings();} };
+const loadSettings = () => {
+  try{
+    const s=JSON.parse(localStorage.getItem(SET_K));
+    if(!s) return defSettings();
+    const merged={...defSettings(),...s};
+    // Force reset stats layout if it doesn't contain new cards
+    const statsLayout=merged.layouts?.stats||[];
+    if(!statsLayout.includes("interval")||!statsLayout.includes("eventdelay")){
+      merged.layouts={...merged.layouts, stats:DEF_LAYOUTS.stats};
+    }
+    return merged;
+  }catch{return defSettings();}
+};
 const loadExpenses = () => { try{ return JSON.parse(localStorage.getItem(EXP_K))||[]; }catch{return[];} };
 const saveData     = (d) => localStorage.setItem(SK, JSON.stringify(d));
 const saveSettings = (s) => localStorage.setItem(SET_K, JSON.stringify(s));
@@ -20,7 +32,7 @@ const defDay = () => ({ cigs:[], cigFactors:{}, cigCravings:{}, cigTypes:{}, wak
 
 const DEF_LAYOUTS = {
   home:    ["counter","timeline","cigs"],
-  stats:   ["summary","cost","hours"],
+  stats:   ["summary","evolution","weekcompare","interval","eventdelay","dow","sleep","hours"],
   progres: ["streak","heatmap","badges"],
   analyse: ["factors","cravings"],
 };
@@ -34,28 +46,21 @@ const defSettings = () => ({
   layouts: DEF_LAYOUTS,
 });
 
-// Detect if current time is in the night window (between bedtime and wakeUp)
+// Dark auto: s'active au Coucher, se désactive au Lever
 const isNightTime = (data) => {
   const dk = today();
   const todayD = data[dk]||defDay();
   const yest = new Date(); yest.setDate(yest.getDate()-1);
   const yk = yest.toISOString().slice(0,10);
   const yesterdayD = data[yk]||defDay();
-  const nowM = (() => { const n=new Date(); return n.getHours()*60+n.getMinutes(); })();
-  const wakeM = msm(todayD.wakeUp);
-  const bedM_y = msm(yesterdayD.bedtime);
-  const bedM_t = msm(todayD.bedtime);
-  // Before wakeup this morning
-  if(wakeM!==null && nowM < wakeM) return true;
-  // After bedtime yesterday (crosses midnight)
-  if(bedM_y!==null && nowM > bedM_y) return true;
-  // After bedtime today
-  if(bedM_t!==null && nowM > bedM_t) return true;
-  // Fallback: 22h–7h if no events set
-  if(bedM_y===null && bedM_t===null && wakeM===null) {
-    if(nowM >= 22*60 || nowM < 7*60) return true;
-  }
+  // Si lever enregistré aujourd'hui → jour, pas nuit
+  if(todayD.wakeUp) return false;
+  // Si coucher enregistré aujourd'hui → nuit
+  if(todayD.bedtime) return true;
+  // Si coucher enregistré hier et pas encore de lever → nuit (après minuit)
+  if(yesterdayD.bedtime && !todayD.wakeUp) return true;
   return false;
+};
 };
 
 const SMOKE_TYPES = [
@@ -184,11 +189,12 @@ const EventModal = ({label,emoji,currentTime,onConfirm,onCancel}) => {
 const FactorModal = ({onConfirm,onCancel,settings}) => {
   const activeTypes = SMOKE_TYPES.filter(t=>(settings.smokeTypes||["cigarette"]).includes(t.id));
   const [smokeType,setSmokeType] = useState(activeTypes[0]?.id||"cigarette");
-  const [selected,setSelected]   = useState(null);
+  const [selected,setSelected]   = useState([]);
   const [craving,setCraving]     = useState(null);
   const [customTime,setCustomTime] = useState(nowHHMM());
   const [useCustom,setUseCustom]   = useState(false);
   const cravingLabels = ["","Légère","Modérée","Forte","Très forte","Irrésistible"];
+  const toggle = id => setSelected(s=>s.includes(id)?s.filter(x=>x!==id):[...s,id]);
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.65)",backdropFilter:"blur(6px)",zIndex:100,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={onCancel}>
       <div style={{background:"#fff",borderRadius:"24px 24px 0 0",padding:"24px 20px 36px",width:"100%",maxWidth:480,maxHeight:"92vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
@@ -228,13 +234,14 @@ const FactorModal = ({onConfirm,onCancel,settings}) => {
 
         {settings.showFactors&&(
           <div style={{marginBottom:16}}>
-            <div style={{fontSize:13,fontWeight:700,color:"#5a3a30",marginBottom:10}}>🔍 Facteur déclenchant <span style={{fontSize:11,fontWeight:400,color:"#a07868"}}>(optionnel)</span></div>
+            <div style={{fontSize:13,fontWeight:700,color:"#5a3a30",marginBottom:6}}>🔍 Facteurs déclenchants <span style={{fontSize:11,fontWeight:400,color:"#a07868"}}>(optionnel, plusieurs possibles)</span></div>
+            {selected.length>0&&<div style={{fontSize:11,color:"#c05040",fontWeight:600,marginBottom:8}}>{selected.map(id=>factorById[id]?.emoji).join(" ")} {selected.map(id=>factorById[id]?.label).join(", ")}</div>}
             <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:7}}>
               {FACTORS.map(f=>(
-                <button key={f.id} onClick={()=>setSelected(selected===f.id?null:f.id)}
-                  style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:"9px 4px",borderRadius:14,border:selected===f.id?"2.5px solid #fb7185":"2px solid rgba(200,180,170,0.25)",background:selected===f.id?"rgba(252,165,165,0.2)":"rgba(255,255,255,0.7)",cursor:"pointer"}}>
+                <button key={f.id} onClick={()=>toggle(f.id)}
+                  style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:"9px 4px",borderRadius:14,border:selected.includes(f.id)?"2.5px solid #fb7185":"2px solid rgba(200,180,170,0.25)",background:selected.includes(f.id)?"rgba(252,165,165,0.2)":"rgba(255,255,255,0.7)",cursor:"pointer"}}>
                   <span style={{fontSize:20}}>{f.emoji}</span>
-                  <span style={{fontSize:9,fontWeight:600,color:selected===f.id?"#c05040":"#a07868",textAlign:"center",lineHeight:1.2}}>{f.label}</span>
+                  <span style={{fontSize:9,fontWeight:600,color:selected.includes(f.id)?"#c05040":"#a07868",textAlign:"center",lineHeight:1.2}}>{f.label}</span>
                 </button>
               ))}
             </div>
@@ -254,7 +261,7 @@ const FactorModal = ({onConfirm,onCancel,settings}) => {
 
         <div style={{display:"flex",gap:10}}>
           <button onClick={onCancel} style={{flex:1,padding:12,borderRadius:14,border:"none",background:"rgba(200,180,170,0.2)",fontSize:14,fontWeight:600,color:"#a07868",cursor:"pointer"}}>Annuler</button>
-          <button onClick={()=>onConfirm(selected,useCustom?customTime:null,craving,smokeType)}
+          <button onClick={()=>onConfirm(selected.length>0?selected:null,useCustom?customTime:null,craving,smokeType)}
             style={{flex:2,padding:12,borderRadius:14,border:"none",background:"linear-gradient(135deg,#fca5a5,#fb7185)",fontSize:15,fontWeight:700,color:"white",cursor:"pointer"}}>
             {SMOKE_TYPES.find(t=>t.id===smokeType)?.emoji||"🚬"} Confirmer
           </button>
@@ -275,7 +282,7 @@ const TimelineBar = ({dayData,dark=false}) => {
   if(dayData.lunch)  evs.push({p:pct(dayData.lunch), c:"#fcd34d",l:"Déjeuner",t:dayData.lunch,sz:14});
   if(dayData.dinner) evs.push({p:pct(dayData.dinner),c:"#fb923c",l:"Dîner",t:dayData.dinner,sz:14});
   if(dayData.bedtime)evs.push({p:pct(dayData.bedtime),c:"#c4b5fd",l:"Coucher",t:dayData.bedtime,sz:14});
-  dayData.cigs.forEach((t,i)=>{ const p2=pct(t); if(p2===null)return; const fid=(dayData.cigFactors||{})[i]; const typ=(dayData.cigTypes||{})[i]||"cigarette"; const te=SMOKE_TYPES.find(x=>x.id===typ); evs.push({p:p2,c:"#fca5a5",l:`${te?.emoji||"🚬"} n°${i+1}${fid?` · ${factorById[fid]?.label}`:""}`,t,sz:11,cig:true}); });
+  dayData.cigs.forEach((t,i)=>{ const p2=pct(t); if(p2===null)return; const fids=(dayData.cigFactors||{})[i]; const factors=Array.isArray(fids)?fids.map(id=>factorById[id]).filter(Boolean):(fids?[factorById[fids]].filter(Boolean):[]); const typ=(dayData.cigTypes||{})[i]||"cigarette"; const te=SMOKE_TYPES.find(x=>x.id===typ); evs.push({p:p2,c:"#fca5a5",l:`${te?.emoji||"🚬"} n°${i+1}${factors.length?` · ${factors.map(f=>f.label).join(", ")}` :""}`,t,sz:11,cig:true}); });
   const ts=zoom===1?6:zoom===2?3:1; const ticks=[]; for(let h=Math.ceil(sH/ts)*ts;h<=sH+wH+0.01;h+=ts){if(h>=0&&h<=24)ticks.push(Math.round(h));}
   const pan=dir=>setOff(o=>Math.max(0,Math.min(24-wH,o+dir*(wH/3))));
   const tc=dark?"#90b8a8":"#a07868";
@@ -340,14 +347,49 @@ const usePeriodFilter = (data) => {
 
 
 const BADGES = [
-  {id:"first",   cat:"🚀 Premiers pas", emoji:"👣",label:"Premier pas",     check:d=>Object.keys(d).length>=1},
-  {id:"week1",   cat:"🚀 Premiers pas", emoji:"📅",label:"7 jours trackés", check:d=>Object.keys(d).length>=7},
-  {id:"streak3", cat:"🔥 Séries",       emoji:"🌱",label:"3 jours maîtrisés",check:d=>{let s=0;for(const k of Object.keys(d).sort().reverse()){const v=d[k];if(v&&v.cigs.length<=v.goal)s++;else break;}return s>=3;}},
-  {id:"streak7", cat:"🔥 Séries",       emoji:"🌿",label:"Une semaine !",   check:d=>{let s=0;for(const k of Object.keys(d).sort().reverse()){const v=d[k];if(v&&v.cigs.length<=v.goal)s++;else break;}return s>=7;}},
-  {id:"halfgoal",cat:"📉 Réduction",    emoji:"🎯",label:"Mi-objectif",    check:d=>Object.values(d).some(v=>v.cigs.length>0&&v.cigs.length<=(v.goal||10)/2)},
-  {id:"zero",    cat:"📉 Réduction",    emoji:"🚭",label:"Journée zéro",   check:d=>Object.values(d).some(v=>v.cigs.length===0&&(v.wakeUp||v.note))},
-  {id:"analyst", cat:"🔬 Analyse",      emoji:"🔬",label:"Analyste",       check:d=>{let n=0;Object.values(d).forEach(v=>n+=Object.values(v.cigFactors||{}).filter(Boolean).length);return n>=10;}},
-  {id:"total50", cat:"📊 Volume",       emoji:"🔢",label:"50 trackées",    check:d=>Object.values(d).reduce((s,v)=>s+(v.cigs?.length||0),0)>=50},
+  // 🚀 Premiers pas
+  {id:"first",     cat:"🚀 Premiers pas", emoji:"👣", label:"Premier pas",       desc:"Tu as commencé à tracker ta consommation. La prise de conscience est la première étape !",          check:d=>Object.keys(d).length>=1},
+  {id:"week1",     cat:"🚀 Premiers pas", emoji:"📅", label:"7 jours trackés",   desc:"7 jours de suivi consécutifs ou non. Tu prends l'habitude de te connaître.",                       check:d=>Object.keys(d).length>=7},
+  {id:"month1",    cat:"🚀 Premiers pas", emoji:"🗓️", label:"30 jours trackés",  desc:"Un mois entier de suivi ! Tu as une vraie vision de tes habitudes maintenant.",                    check:d=>Object.keys(d).length>=30},
+  {id:"noted",     cat:"🚀 Premiers pas", emoji:"📝", label:"Journaliste",        desc:"Tu as écrit une note dans ton journal. Les mots aident à comprendre.",                              check:d=>Object.values(d).some(v=>v.note&&v.note.trim().length>0)},
+  {id:"events5",   cat:"🚀 Premiers pas", emoji:"⏰", label:"Rythmé",             desc:"Tu as enregistré 5 événements de la journée (lever, repas…). Tu connais ton rythme.",              check:d=>{let n=0;Object.values(d).forEach(v=>{if(v.wakeUp)n++;if(v.lunch)n++;if(v.dinner)n++;if(v.bedtime)n++;});return n>=5;}},
+
+  // 🔥 Séries
+  {id:"streak3",   cat:"🔥 Séries",       emoji:"🌱", label:"3 jours maîtrisés", desc:"3 jours consécutifs sous ton objectif. La régularité commence à s'installer.",                    check:d=>{let s=0;for(const k of Object.keys(d).sort().reverse()){const v=d[k];if(v&&v.cigs.length<=v.goal)s++;else break;}return s>=3;}},
+  {id:"streak7",   cat:"🔥 Séries",       emoji:"🌿", label:"Une semaine !",      desc:"7 jours consécutifs sous ton objectif. Une vraie série, continue comme ça !",                     check:d=>{let s=0;for(const k of Object.keys(d).sort().reverse()){const v=d[k];if(v&&v.cigs.length<=v.goal)s++;else break;}return s>=7;}},
+  {id:"streak14",  cat:"🔥 Séries",       emoji:"🌲", label:"Deux semaines !",    desc:"14 jours consécutifs sous ton objectif. Tu as trouvé un vrai rythme.",                            check:d=>{let s=0;for(const k of Object.keys(d).sort().reverse()){const v=d[k];if(v&&v.cigs.length<=v.goal)s++;else break;}return s>=14;}},
+  {id:"streak30",  cat:"🔥 Séries",       emoji:"🌳", label:"Un mois de maîtrise",desc:"30 jours consécutifs sous ton objectif. Un mois entier ! Tu es impressionnant(e).",               check:d=>{let s=0;for(const k of Object.keys(d).sort().reverse()){const v=d[k];if(v&&v.cigs.length<=v.goal)s++;else break;}return s>=30;}},
+  {id:"comeback",  cat:"🔥 Séries",       emoji:"💪", label:"Retour en force",    desc:"Tu as repris une série après l'avoir perdue. La persévérance, c'est ça le vrai courage.",        check:d=>{const keys=Object.keys(d).sort();let hadBreak=false,streak=0;for(const k of keys){const v=d[k];if(v.cigs.length<=v.goal)streak++;else{if(streak>=3)hadBreak=true;streak=0;}}return hadBreak&&streak>=3;}},
+
+  // 📉 Réduction
+  {id:"halfgoal",  cat:"📉 Réduction",    emoji:"🎯", label:"Mi-objectif",        desc:"Un jour où tu as fumé moitié moins que ton objectif. Tu peux faire encore mieux !",              check:d=>Object.values(d).some(v=>v.cigs.length>0&&v.cigs.length<=(v.goal||10)/2)},
+  {id:"zero",      cat:"📉 Réduction",    emoji:"🚭", label:"Journée zéro",        desc:"Une journée sans aucune cigarette. C'est possible, tu l'as prouvé !",                            check:d=>Object.values(d).some(v=>v.cigs.length===0&&(v.wakeUp||v.note))},
+  {id:"zero3",     cat:"📉 Réduction",    emoji:"✨", label:"3 jours zéro",        desc:"3 journées sans cigarette au total. Ton corps te remercie.",                                      check:d=>Object.values(d).filter(v=>v.cigs.length===0&&(v.wakeUp||v.note)).length>=3},
+  {id:"goaldown",  cat:"📉 Réduction",    emoji:"📉", label:"Objectif abaissé",    desc:"Tu as baissé ton objectif quotidien. Chaque palier compte dans la réduction.",                   check:d=>Object.values(d).some(v=>(v.goal||10)<10)},
+  {id:"morning",   cat:"📉 Réduction",    emoji:"🌅", label:"Lève-tôt résistant",  desc:"Plus d'1h après ton lever avant la première cigarette. Super départ de journée !",              check:d=>Object.values(d).some(v=>{if(!v.wakeUp||!v.cigs.length)return false;const w=v.wakeUp.split(":").map(Number);const wm=w[0]*60+w[1];const first=v.cigs.map(t=>{const[h,m]=t.split(":").map(Number);return h*60+m;}).filter(x=>x>wm).sort()[0];return first!==undefined&&(first-wm)>=60;})},
+
+  // 🔬 Analyse
+  {id:"analyst",   cat:"🔬 Analyse",      emoji:"🔬", label:"Analyste",           desc:"Tu as renseigné 10 facteurs déclenchants. Tu comprends mieux pourquoi tu fumes.",               check:d=>{let n=0;Object.values(d).forEach(v=>Object.values(v.cigFactors||{}).forEach(f=>{const ids=Array.isArray(f)?f:(f?[f]:[]);n+=ids.filter(Boolean).length;}));return n>=10;}},
+  {id:"analyst50", cat:"🔬 Analyse",      emoji:"🧠", label:"Expert",             desc:"50 facteurs renseignés ! Tu as une connaissance profonde de tes déclencheurs.",                  check:d=>{let n=0;Object.values(d).forEach(v=>Object.values(v.cigFactors||{}).forEach(f=>{const ids=Array.isArray(f)?f:(f?[f]:[]);n+=ids.filter(Boolean).length;}));return n>=50;}},
+  {id:"craving5",  cat:"🔬 Analyse",      emoji:"🌡️", label:"À l'écoute",         desc:"Tu as noté ton envie 5 fois. Comprendre son intensité, c'est apprendre à la gérer.",           check:d=>Object.values(d).reduce((s,v)=>s+Object.keys(v.cigCravings||{}).length,0)>=5},
+  {id:"multifact", cat:"🔬 Analyse",      emoji:"🔗", label:"Multi-causes",       desc:"Tu as sélectionné plusieurs facteurs pour une même cigarette. La réalité est souvent complexe.", check:d=>Object.values(d).some(v=>Object.values(v.cigFactors||{}).some(f=>Array.isArray(f)&&f.length>=2))},
+
+  // 📊 Volume
+  {id:"total50",   cat:"📊 Volume",       emoji:"🔢", label:"50 trackées",        desc:"50 cigarettes enregistrées au total. Chaque entrée est une donnée qui t'aide.",                 check:d=>Object.values(d).reduce((s,v)=>s+(v.cigs?.length||0),0)>=50},
+  {id:"total200",  cat:"📊 Volume",       emoji:"💯", label:"200 trackées",       desc:"200 cigarettes enregistrées. Tu es très régulier(ère) dans ton suivi.",                          check:d=>Object.values(d).reduce((s,v)=>s+(v.cigs?.length||0),0)>=200},
+  {id:"total500",  cat:"📊 Volume",       emoji:"🏆", label:"500 trackées",       desc:"500 cigarettes trackées. Un engagement total dans la compréhension de tes habitudes.",           check:d=>Object.values(d).reduce((s,v)=>s+(v.cigs?.length||0),0)>=500},
+  {id:"consistent",cat:"📊 Volume",       emoji:"📆", label:"Assidu(e)",          desc:"Tu as tracké 10 jours différents. La régularité du suivi est la clé du succès.",                check:d=>Object.keys(d).length>=10},
+
+  // 💰 Portefeuille
+  {id:"wallet1",   cat:"💰 Portefeuille", emoji:"💶", label:"Première dépense",   desc:"Tu as enregistré ta première dépense tabac. Voir le coût réel, ça change tout.",               check:(d,e)=>e&&e.length>=1},
+  {id:"wallet10",  cat:"💰 Portefeuille", emoji:"💸", label:"Comptable",          desc:"10 dépenses enregistrées. Tu as une vision claire de ce que tu dépenses.",                       check:(d,e)=>e&&e.length>=10},
+  {id:"saving1",   cat:"💰 Portefeuille", emoji:"🐷", label:"Petite tirelire",    desc:"Tu as économisé au moins 10€ par rapport à ton habitude. C'est un début !",                     check:d=>{const vals=Object.values(d);if(!vals.length)return false;const cpCig=12/20;const usualPerDay=20*cpCig;const actual=vals.reduce((s,v)=>s+(v.cigs?.length||0),0)/vals.length*cpCig;return(usualPerDay-actual)*vals.length>=10;}},
+
+  // 🌙 Bien-être
+  {id:"sleep8",    cat:"🌙 Bien-être",    emoji:"😴", label:"Bonne nuit",         desc:"Tu as enregistré un coucher et un lever avec moins de 10 cigs dans la journée.",               check:d=>Object.values(d).some(v=>v.bedtime&&v.wakeUp&&v.cigs.length<=10)},
+  {id:"interval1h",cat:"🌙 Bien-être",    emoji:"⏳", label:"Patience",           desc:"Au moins une journée où l'intervalle moyen entre tes cigarettes dépasse 1 heure.",              check:d=>Object.values(d).some(v=>{const times=v.cigs.map(t=>{const[h,m]=t.split(":").map(Number);return h*60+m;}).sort((a,b)=>a-b);if(times.length<2)return false;let sum=0;for(let i=1;i<times.length;i++)sum+=times[i]-times[i-1];return sum/(times.length-1)>=60;})},
+  {id:"weekend",   cat:"🌙 Bien-être",    emoji:"🏖️", label:"Week-end maîtrisé", desc:"Un samedi ou dimanche sous ton objectif. Même le week-end, tu gardes le contrôle !",           check:d=>Object.entries(d).some(([k,v])=>{const day=new Date(k+"T12:00:00").getDay();return(day===0||day===6)&&v.cigs.length<=v.goal;})},
+  {id:"nofactor",  cat:"🌙 Bien-être",    emoji:"🧘", label:"Serein(e)",          desc:"Une journée sans facteur de stress renseigné. Parfois on fume sans raison particulière.",       check:d=>Object.values(d).some(v=>v.cigs.length>0&&Object.keys(v.cigFactors||{}).length===0)},
 ];
 const BADGE_CATS = [...new Set(BADGES.map(b=>b.cat))];
 
@@ -408,9 +450,9 @@ const HomeTab = ({data,setData,settings,setSettings,expenses}) => {
       <Lbl dark={dark}>Consommations ({day.cigs.length})</Lbl>
       {day.cigs.length===0?<div style={{color:dark?"#5a8a78":"#c4a882",fontSize:14,textAlign:"center",padding:"12px 0"}}>Aucune consommation pour l'instant 🌿</div>
       :<div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-        {day.cigs.map((t,i)=>{ const fid=(day.cigFactors||{})[i]; const f=fid?factorById[fid]:null; const cr=(day.cigCravings||{})[i]; const typ=(day.cigTypes||{})[i]||"cigarette"; const te=SMOKE_TYPES.find(x=>x.id===typ);
+        {day.cigs.map((t,i)=>{ const fids=(day.cigFactors||{})[i]; const factors=Array.isArray(fids)?fids.map(id=>factorById[id]).filter(Boolean):(fids?[factorById[fids]].filter(Boolean):[]); const cr=(day.cigCravings||{})[i]; const typ=(day.cigTypes||{})[i]||"cigarette"; const te=SMOKE_TYPES.find(x=>x.id===typ);
           return<div key={i} style={{display:"flex",alignItems:"center",gap:6,background:dark?"rgba(252,165,165,0.14)":"rgba(252,165,165,0.25)",borderRadius:99,padding:"6px 12px",fontSize:13,color:dark?"#f0c0b8":"#8a3a30"}}>
-            <span>{te?.emoji||"🚬"}</span>{t}{f&&<span style={{fontSize:11}}>{f.emoji}</span>}
+            <span>{te?.emoji||"🚬"}</span>{t}{factors.map(f=><span key={f.id} style={{fontSize:11}}>{f.emoji}</span>)}
             {cr&&settings.showCravings&&<span style={{fontSize:10,background:"rgba(196,181,253,0.4)",borderRadius:99,padding:"1px 6px",color:"#5a3a90",fontWeight:700}}>{cr}/5</span>}
             <button onClick={()=>remCig(i)} style={{background:"none",border:"none",cursor:"pointer",padding:0,display:"flex"}}><Icon name="trash" size={13} color="#f87171"/></button>
           </div>;})}
@@ -825,9 +867,10 @@ const StatsTab = ({data,settings,setSettings,expenses}) => {
 };
 
 // ══ PROGRESS ══════════════════════════════════════════════════════════════════
-const ProgressTab = ({data,settings,setSettings}) => {
+const ProgressTab = ({data,settings,setSettings,expenses}) => {
   const dark = settings.darkMode||false;
   const [heatTip,setHeatTip] = useState(null);
+  const [selectedBadge,setSelectedBadge] = useState(null);
   const allKeys = Object.keys(data).sort();
   const now = new Date(); const heatStart = new Date(now); heatStart.setFullYear(now.getFullYear()-1); heatStart.setDate(heatStart.getDate()+1);
   const heatDays=[];
@@ -841,7 +884,7 @@ const ProgressTab = ({data,settings,setSettings}) => {
     return dark?`rgba(${Math.round(80+r*160)},${Math.round(180-r*100)},${Math.round(120-r*60)},0.8)`:`rgb(${Math.round(180+r*75)},${Math.round(230-r*90)},${Math.round(180-r*70)})`;
   };
   let streak=0; for(const k of[...allKeys].reverse()){const d=data[k];if(d&&d.cigs.length<=d.goal)streak++;else break;}
-  const unlockedIds = new Set(BADGES.filter(b=>b.check(data)).map(b=>b.id));
+  const unlockedIds = new Set(BADGES.filter(b=>b.check(data,expenses||[])).map(b=>b.id));
   const stC=dark?"#90b8a8":"#a07868", tC=dark?"#f0f4f2":"#5a3a30";
 
   const heatmapCard = (
@@ -867,7 +910,7 @@ const ProgressTab = ({data,settings,setSettings}) => {
   );
   const badgesCard = (
     <Card key="badges" dark={dark}><Lbl dark={dark}>🏅 Badges ({BADGES.filter(b=>unlockedIds.has(b.id)).length}/{BADGES.length})</Lbl>
-      {BADGE_CATS.map(cat=>{const cb=BADGES.filter(b=>b.cat===cat);return<div key={cat} style={{marginBottom:14}}><div style={{fontSize:11,fontWeight:700,color:stC,textTransform:"uppercase",marginBottom:8}}>{cat}</div><div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>{cb.map(b=>{const on=unlockedIds.has(b.id);return<div key={b.id} style={{background:on?(dark?"linear-gradient(135deg,rgba(253,230,138,0.22),rgba(252,200,100,0.18))":"linear-gradient(135deg,rgba(253,230,138,0.45),rgba(252,200,100,0.3))"):(dark?"rgba(255,255,255,0.06)":"rgba(200,180,170,0.1)"),borderRadius:14,padding:"10px 6px",textAlign:"center",border:on?"1.5px solid rgba(252,200,100,0.5)":`1.5px solid ${dark?"rgba(255,255,255,0.1)":"rgba(200,180,170,0.2)"}`}}><div style={{fontSize:26,marginBottom:3,opacity:on?1:0.25}}>{on?b.emoji:"🔒"}</div><div style={{fontSize:9,fontWeight:700,color:on?(dark?"#e8c860":"#7a5a20"):(dark?"#5a8a80":"#c4a882"),lineHeight:1.3}}>{b.label}</div></div>;})}</div></div>;})}
+      {BADGE_CATS.map(cat=>{const cb=BADGES.filter(b=>b.cat===cat);return<div key={cat} style={{marginBottom:14}}><div style={{fontSize:11,fontWeight:700,color:stC,textTransform:"uppercase",marginBottom:8}}>{cat}</div><div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>{cb.map(b=>{const on=unlockedIds.has(b.id);return<button key={b.id} onClick={()=>setSelectedBadge(b)} style={{background:on?(dark?"linear-gradient(135deg,rgba(253,230,138,0.22),rgba(252,200,100,0.18))":"linear-gradient(135deg,rgba(253,230,138,0.45),rgba(252,200,100,0.3))"):(dark?"rgba(255,255,255,0.06)":"rgba(200,180,170,0.1)"),borderRadius:14,padding:"10px 6px",textAlign:"center",border:on?"1.5px solid rgba(252,200,100,0.5)":`1.5px solid ${dark?"rgba(255,255,255,0.1)":"rgba(200,180,170,0.2)"}`,cursor:"pointer"}}><div style={{fontSize:24,marginBottom:3,opacity:on?1:0.25}}>{on?b.emoji:"🔒"}</div><div style={{fontSize:8,fontWeight:700,color:on?(dark?"#e8c860":"#7a5a20"):(dark?"#5a8a80":"#c4a882"),lineHeight:1.3}}>{b.label}</div></button>;})}</div></div>;})}
     </Card>
   );
   const cardMap = {heatmap:heatmapCard, streak:streakCard, badges:badgesCard};
@@ -875,8 +918,25 @@ const ProgressTab = ({data,settings,setSettings}) => {
 
   return (
     <div>
-
       {layout.map(id=>cardMap[id]||null)}
+
+      {selectedBadge&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",backdropFilter:"blur(6px)",zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",padding:24}} onClick={()=>setSelectedBadge(null)}>
+          <div style={{background:dark?"#1a2820":"#fff",borderRadius:24,padding:"32px 24px",maxWidth:320,width:"100%",textAlign:"center"}} onClick={e=>e.stopPropagation()}>
+            {unlockedIds.has(selectedBadge.id)
+              ? <div style={{fontSize:64,marginBottom:8}}>{selectedBadge.emoji}</div>
+              : <div style={{fontSize:64,marginBottom:8,filter:"grayscale(1)",opacity:0.4}}>🔒</div>}
+            <div style={{fontSize:18,fontWeight:900,color:tC,marginBottom:4}}>{selectedBadge.label}</div>
+            <div style={{fontSize:11,fontWeight:700,color:stC,marginBottom:12}}>{selectedBadge.cat}</div>
+            <div style={{fontSize:13,color:tC,lineHeight:1.6,marginBottom:16,background:dark?"rgba(255,255,255,0.07)":"rgba(200,180,170,0.12)",borderRadius:14,padding:"12px 14px"}}>
+              {unlockedIds.has(selectedBadge.id)
+                ? <><div style={{fontSize:11,fontWeight:700,color:"#4ade80",marginBottom:6}}>✅ DÉBLOQUÉ</div>{selectedBadge.desc}</>
+                : <><div style={{fontSize:11,fontWeight:700,color:stC,marginBottom:6}}>🔒 NON DÉBLOQUÉ</div>{selectedBadge.desc}</>}
+            </div>
+            <button onClick={()=>setSelectedBadge(null)} style={{background:"linear-gradient(135deg,rgba(200,180,170,0.3),rgba(200,180,170,0.2))",border:"none",borderRadius:12,padding:"10px 28px",fontSize:14,fontWeight:700,color:tC,cursor:"pointer"}}>Fermer</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -888,7 +948,10 @@ const AnalyseTab = ({data,settings,setSettings,expenses}) => {
   const days = keys.map(k=>data[k]).filter(Boolean);
 
   const factorCount={};
-  days.forEach(d=>Object.values(d.cigFactors||{}).forEach(f=>{if(f)factorCount[f]=(factorCount[f]||0)+1;}));
+  days.forEach(d=>Object.values(d.cigFactors||{}).forEach(f=>{
+    const ids=Array.isArray(f)?f:(f?[f]:[]);
+    ids.forEach(id=>{if(id)factorCount[id]=(factorCount[id]||0)+1;});
+  }));
   const maxFactor=Math.max(...Object.values(factorCount),1);
   const factorStats=FACTORS.filter(f=>factorCount[f.id]).map(f=>({...f,count:factorCount[f.id]||0})).sort((a,b)=>b.count-a.count);
 
@@ -909,7 +972,7 @@ const AnalyseTab = ({data,settings,setSettings,expenses}) => {
   }
 
   const allKeys2=Object.keys(data).sort();
-  const exportCSV=()=>{const rows=[["Date","Conso.","Objectif","Types","Facteurs","Envie moy","Note"]];allKeys2.forEach(k=>{const d=data[k];if(d){const factors=Object.values(d.cigFactors||{}).map(f=>factorById[f]?.label).filter(Boolean).join("|");const types=Object.values(d.cigTypes||{}).join("|");const cravings=Object.values(d.cigCravings||{});const avgCr=cravings.length?(cravings.reduce((a,b)=>a+b,0)/cravings.length).toFixed(1):"";rows.push([k,d.cigs.length,d.goal,types,factors,avgCr,d.note||""]);} });const csv="\uFEFF"+rows.map(r=>r.join(";")).join("\n");const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));a.download="smoketrack_export.csv";a.click();};
+  const exportCSV=()=>{const rows=[["Date","Conso.","Objectif","Types","Facteurs","Envie moy","Note"]];allKeys2.forEach(k=>{const d=data[k];if(d){const factors=Object.values(d.cigFactors||{}).flatMap(f=>Array.isArray(f)?f:(f?[f]:[])).map(id=>factorById[id]?.label).filter(Boolean).join("|");const types=Object.values(d.cigTypes||{}).join("|");const cravings=Object.values(d.cigCravings||{});const avgCr=cravings.length?(cravings.reduce((a,b)=>a+b,0)/cravings.length).toFixed(1):"";rows.push([k,d.cigs.length,d.goal,types,factors,avgCr,d.note||""]);} });const csv="\uFEFF"+rows.map(r=>r.join(";")).join("\n");const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));a.download="smoketrack_export.csv";a.click();};
 
   const tC=dark?"#f0f4f2":"#5a3a30", stC=dark?"#90b8a8":"#a07868";
   const layout = (settings.layouts||DEF_LAYOUTS).analyse || DEF_LAYOUTS.analyse;
@@ -1166,7 +1229,7 @@ const SettingsTab = ({data,setData,settings,setSettings,expenses,setExpenses}) =
       {/* APPARENCE */}
       <Card dark={dark}><Lbl dark={dark}>🎨 APPARENCE</Lbl>
         <Toggle val={!!settings.darkMode} onChange={v=>upd({darkMode:v})} label="🌙 Mode sombre" desc="Interface sombre pour la nuit" dark={dark}/>
-        <Toggle val={settings.autoDark!==false} onChange={v=>upd({autoDark:v})} label="🌛 Mode sombre automatique" desc="S'active entre coucher et lever du soleil" dark={dark}/>
+        <Toggle val={settings.autoDark!==false} onChange={v=>upd({autoDark:v})} label="🌛 Mode sombre automatique" desc="S'active au Coucher 😴, se désactive au Lever ☀️" dark={dark}/>
       </Card>
 
       {/* FONCTIONNALITÉS */}
@@ -1268,7 +1331,7 @@ export default function App() {
         {tab==="home"     &&<HomeTab     data={data} setData={setData} settings={settings} setSettings={setSettings} expenses={expenses}/>}
         {tab==="calendar" &&<CalendarTab data={data} setData={setData} settings={settings} setSettings={setSettings} expenses={expenses}/>}
         {tab==="stats"    &&<StatsTab    data={data} settings={settings} setSettings={setSettings} expenses={expenses}/>}
-        {tab==="progres"  &&<ProgressTab data={data} settings={settings} setSettings={setSettings}/>}
+        {tab==="progres"  &&<ProgressTab data={data} settings={settings} setSettings={setSettings} expenses={expenses}/>}
         {tab==="analyse"  &&<AnalyseTab  data={data} settings={settings} setSettings={setSettings} expenses={expenses}/>}
         {tab==="wallet"   &&<WalletTab   data={data} settings={settings} setSettings={setSettings} expenses={expenses} setExpenses={setExpenses}/>}
         {tab==="settings" &&<SettingsTab data={data} setData={setData} settings={settings} setSettings={setSettings} expenses={expenses} setExpenses={setExpenses}/>}
