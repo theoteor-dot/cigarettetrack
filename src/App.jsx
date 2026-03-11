@@ -1568,8 +1568,10 @@ export default function App() {
         {tab==="wallet"   &&<WalletTab   data={data} settings={settings} setSettings={setSettings} expenses={expenses} setExpenses={setExpenses}/>}
         {tab==="settings" &&<SettingsTab data={data} setData={setData} settings={settings} setSettings={setSettings} expenses={expenses} setExpenses={setExpenses}/>}
       </div>
-      <div style={{position:"fixed",bottom:0,left:0,right:0,background:dark?"rgba(8,13,18,0.97)":"rgba(255,255,255,0.9)",backdropFilter:"blur(20px)",borderTop:dark?"1px solid rgba(255,255,255,0.1)":"1px solid rgba(200,180,170,0.3)",display:"flex",justifyContent:"space-around",padding:"6px 0 8px"}}>
-        {tabs.map(t=><button key={t.id} onClick={()=>setTab(t.id)} style={{background:"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2,padding:"3px 4px",color:tab===t.id?activeClr:inactClr,transition:"color 0.2s",minWidth:44}}><Icon name={t.icon} size={22} color={tab===t.id?activeClr:inactClr}/><span style={{fontSize:9,fontWeight:tab===t.id?700:500}}>{t.label}</span></button>)}
+      <div style={{position:"fixed",bottom:0,left:0,right:0,background:dark?"rgba(8,13,18,0.97)":"rgba(255,255,255,0.9)",backdropFilter:"blur(20px)",borderTop:dark?"1px solid rgba(255,255,255,0.1)":"1px solid rgba(200,180,170,0.3)"}}>
+        <div style={{display:"flex",justifyContent:"space-around",padding:"6px 0 8px"}}>
+          {tabs.map(t=><button key={t.id} onClick={()=>setTab(t.id)} style={{background:"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2,padding:"3px 4px",color:tab===t.id?activeClr:inactClr,transition:"color 0.2s",minWidth:44}}><Icon name={t.icon} size={22} color={tab===t.id?activeClr:inactClr}/><span style={{fontSize:9,fontWeight:tab===t.id?700:500}}>{t.label}</span></button>)}
+        </div>
       </div>
     </div>
   );
